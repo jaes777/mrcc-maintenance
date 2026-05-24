@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MRCC Maintenance</title>
+<style>
+  :root {
+    --teal: #1a7a7a;
+    --teal-light: #e8f5f5;
+    --teal-dark: #145f5f;
+    --orange: #e07b39;
+    --red: #c0392b;
+    --green: #27ae60;
+    --yellow: #f39c12;
+    --grey: #f4f4f4;
+    --dark: #2c3e50;
+    --mid: #7f8c8d;
+    --white: #ffffff;
+    --shadow: 0 2px 8px rgba(0,0,0,0.12);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--grey); color: var(--dark); min-height: 100vh; }
+
+  /* HEADER */
+  header { background: var(--teal); color: white; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+  header h1 { font-size: 1.2rem; font-weight: 700; }
+  header p { font-size: 0.75rem; opacity: 0.85; }
+  .header-logo { width: 44px; height: 44px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--teal); font-size: 1rem; }
+
+  /* NAV TABS */
+  nav { background: white; display: flex; border-bottom: 2px solid var(--teal-light); position: sticky; top: 72px; z-index: 99; overflow-x: auto; }
+  nav button { flex: 1; min-width: 80px; padding: 12px 8px; border: none; background: none; font-size: 0.78rem; font-weight: 600; color: var(--mid); cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  nav button.active { color: var(--teal); border-bottom: 3px solid var(--teal); background: var(--teal-light); }
+  nav button:hover:not(.active) { background: var(--grey); }
+
+  /* PAGES */
+  .page { display: none; padding: 16px; max-width: 800px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card { background: white; border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
+  .card-title { font-size: 1rem; font-weight: 700; color: var(--teal-dark); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  /* DASHBOARD STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat { background: white; border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); text-align: center; border-left: 4px solid var(--teal); }
+  .stat.urgent { border-left-color: var(--red); }
+  .stat.heritage { border-left-color: var(--orange); }
+  .stat.done { border-left-color: var(--green); }
+  .stat-num { font-size: 2rem; font-weight: 900; color: var(--teal-dark); }
+  .stat.urgent .stat-num { color: var(--red); }
+  .stat.heritage .stat-num { color: var(--orange); }
+  .stat.done .stat-num { color: var(--green); }
+  .stat-label { font-size: 0.75rem; color: var(--mid); margin-top: 4px; }
+
+  /* FORMS */
+  .form-group { margin-bottom: 16px; }
+  label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--dark); margin-bottom: 6px; }
+  input, select, textarea { width: 100%; padding: 12px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 0.95rem; font-family: inherit; transition: border 0.2s; background: white; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal); }
+  textarea { resize: vertical; min-height: 90px; }
+  .required { color: var(--red); }
+
+  /* PRIORITY BUTTONS */
+  .priority-group { display: flex; gap: 8px; }
+  .priority-btn { flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px; background: white; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .priority-btn.low.selected { background: var(--green); border-color: var(--green); color: white; }
+  .priority-btn.medium.selected { background: var(--yellow); border-color: var(--yellow); color: white; }
+  .priority-btn.high.selected { background: var(--orange); border-color: var(--orange); color: white; }
+  .priority-btn.urgent.selected { background: var(--red); border-color: var(--red); color: white; }
+
+  /* PHOTO UPLOAD */
+  .photo-upload { border: 2px dashed #ccc; border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--grey); }
+  .photo-upload:hover { border-color: var(--teal); background: var(--teal-light); }
+  .photo-upload input { display: none; }
+  .photo-upload-icon { font-size: 2rem; margin-bottom: 8px; }
+  .photo-upload p { font-size: 0.85rem; color: var(--mid); }
+  .photo-previews { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .photo-preview { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; border: 2px solid var(--teal); }
+
+  /* SUBMIT BUTTON */
+  .btn-submit { width: 100%; padding: 16px; background: var(--teal); color: white; border: none; border-radius: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: background 0.2s; margin-top: 8px; }
+  .btn-submit:hover { background: var(--teal-dark); }
+  .btn-submit:active { transform: scale(0.98); }
+  .btn-secondary { padding: 10px 18px; background: white; color: var(--teal); border: 2px solid var(--teal); border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+  .btn-secondary:hover { background: var(--teal-light); }
+  .btn-danger { padding: 8px 14px; background: white; color: var(--red); border: 2px solid var(--red); border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+
+  /* HERITAGE BADGE */
+  .heritage-badge { display: inline-flex; align-items: center; gap: 4px; background: #fff3e0; color: var(--orange); border: 1.5px solid var(--orange); border-radius: 20px; padding: 3px 10px; font-size: 0.72rem; font-weight: 700; }
+  .heritage-warning { background: #fff3e0; border: 1.5px solid var(--orange); border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; color: #7d4a00; margin-top: 10px; display: none; }
+  .heritage-warning.show { display: flex; align-items: flex-start; gap: 8px; }
+
+  /* JOB LIST */
+  .job-list { list-style: none; }
+  .job-item { background: white; border-radius: var(--radius); padding: 16px; margin-bottom: 10px; box-shadow: var(--shadow); border-left: 4px solid var(--teal); cursor: pointer; transition: transform 0.15s; }
+  .job-item:hover { transform: translateX(3px); }
+  .job-item.urgent { border-left-color: var(--red); }
+  .job-item.high { border-left-color: var(--orange); }
+  .job-item.medium { border-left-color: var(--yellow); }
+  .job-item.low { border-left-color: var(--green); }
+  .job-item.status-done { opacity: 0.6; border-left-color: var(--mid); }
+  .job-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .job-title { font-weight: 700; font-size: 0.95rem; }
+  .job-meta { font-size: 0.78rem; color: var(--mid); margin-top: 4px; }
+  .job-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .tag { padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; }
+  .tag-location { background: var(--teal-light); color: var(--teal-dark); }
+  .tag-category { background: #f0eaff; color: #5b2d8e; }
+  .tag-priority-urgent { background: #fde8e8; color: var(--red); }
+  .tag-priority-high { background: #fef0e6; color: var(--orange); }
+  .tag-priority-medium { background: #fef9e6; color: #b7770d; }
+  .tag-priority-low { background: #e8f8ee; color: #1e7e45; }
+  .tag-status-open { background: #e8f0fe; color: #1a56c4; }
+  .tag-status-inprogress { background: #fff3e0; color: #b06000; }
+  .tag-status-done { background: #e8f8ee; color: #1e7e45; }
+
+  /* STATUS SELECT */
+  .status-inline { padding: 4px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; border: 2px solid; cursor: pointer; background: white; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto; }
+  .modal-overlay.show { display: flex; align-items: flex-start; justify-content: center; padding: 20px; }
+  .modal { background: white; border-radius: var(--radius); padding: 24px; max-width: 600px; width: 100%; margin: auto; position: relative; }
+  .modal-close { position: absolute; top: 14px; right: 16px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--mid); }
+  .modal h2 { font-size: 1.1rem; color: var(--teal-dark); margin-bottom: 16px; padding-right: 30px; }
+
+  /* SCHEDULED TASKS */
+  .task-item { background: white; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px; }
+  .task-check { width: 24px; height: 24px; border-radius: 50%; border: 2.5px solid var(--teal); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .task-check.done { background: var(--teal); border-color: var(--teal); }
+  .task-check.done::after { content: '✓'; color: white; font-size: 0.8rem; font-weight: 700; }
+  .task-check.overdue { border-color: var(--red); }
+  .task-info { flex: 1; }
+  .task-name { font-weight: 600; font-size: 0.9rem; }
+  .task-due { font-size: 0.75rem; color: var(--mid); margin-top: 3px; }
+  .task-due.overdue { color: var(--red); font-weight: 600; }
+  .freq-badge { padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; background: var(--teal-light); color: var(--teal-dark); white-space: nowrap; }
+
+  /* FILTER BAR */
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px; }
+  .filter-btn { padding: 7px 14px; border-radius: 20px; border: 2px solid #ddd; background: white; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+  .filter-btn.active { background: var(--teal); border-color: var(--teal); color: white; }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--mid); }
+  .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-state p { font-size: 0.9rem; }
+
+  /* SUCCESS TOAST */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--teal-dark); color: white; padding: 14px 24px; border-radius: 30px; font-weight: 600; font-size: 0.9rem; z-index: 9999; transition: transform 0.3s ease; box-shadow: var(--shadow); }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* SEARCH */
+  .search-box { position: relative; margin-bottom: 14px; }
+  .search-box input { padding-left: 40px; }
+  .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--mid); font-size: 1rem; }
+
+  /* SECTION HEADER */
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .section-header h2 { font-size: 1.1rem; color: var(--teal-dark); }
+
+  /* REPORT PAGE */
+  .quick-links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .quick-link { background: white; border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); text-align: center; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+  .quick-link:hover { border-color: var(--teal); background: var(--teal-light); }
+  .quick-link-icon { font-size: 1.8rem; margin-bottom: 6px; }
+  .quick-link-label { font-size: 0.8rem; font-weight: 600; color: var(--dark); }
+
+  @media (max-width: 480px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .quick-links { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🔧 MRCC Maintenance</h1>
+    <p>Margaret River Community Centre</p>
+  </div>
+  <div class="header-logo">MR</div>
+</header>
+
+<nav>
+  <button class="active" onclick="showPage('dashboard')">🏠 Dashboard</button>
+  <button onclick="showPage('report')">➕ Report</button>
+  <button onclick="showPage('jobs')">📋 Jobs</button>
+  <button onclick="showPage('scheduled')">📅 Schedule</button>
+  <button onclick="showPage('buildings')">🏛️ Buildings</button>
+</nav>
+
+<!-- DASHBOARD -->
+<div id="page-dashboard" class="page active">
+  <div class="stats-grid">
+    <div class="stat urgent"><div class="stat-num" id="stat-urgent">0</div><div class="stat-label">Urgent / High</div></div>
+    <div class="stat"><div class="stat-num" id="stat-open">0</div><div class="stat-label">Open Jobs</div></div>
+    <div class="stat heritage"><div class="stat-num" id="stat-heritage">0</div><div class="stat-label">Heritage Flagged</div></div>
+    <div class="stat done"><div class="stat-num" id="stat-done">0</div><div class="stat-label">Completed (30d)</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚡ Urgent & High Priority</div>
+    <ul class="job-list" id="dashboard-urgent-list">
+      <div class="empty-state"><div class="empty-icon">✅</div><p>No urgent jobs right now</p></div>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📅 Upcoming Scheduled Tasks</div>
+    <div id="dashboard-tasks-list"></div>
+  </div>
+</div>
+
+<!-- REPORT A FAULT -->
+<div id="page-report" class="page">
+  <div class="card">
+    <div class="card-title">➕ Report a Maintenance Issue</div>
+
+    <div class="form-group">
+      <label>Your Name <span class="required">*</span></label>
+      <input type="text" id="reporter-name" placeholder="e.g. Jane Smith">
+    </div>
+
+    <div class="form-group">
+      <label>Your Contact (phone or email)</label>
+      <input type="text" id="reporter-contact" placeholder="e.g. 0400 000 000 or jane@example.com">
+    </div>
+
+    <div class="form-group">
+      <label>Location <span class="required">*</span></label>
+      <select id="fault-location" onchange="checkHeritage()">
+        <option value="">— Select building / area —</option>
+        <optgroup label="🏛️ Heritage Listed Buildings">
+          <option value="Old Church|heritage">Old Church</option>
+          <option value="Isaac's Cottage|heritage">Isaac's Cottage</option>
+          <option value="Doctor's Surgery|heritage">Doctor's Surgery</option>
+          <option value="Matron's Quarters|heritage">Matron's Quarters</option>
+          <option value="Nurses' Quarters|heritage">Nurses' Quarters</option>
+          <option value="Main Building|heritage">Main Building</option>
+          <option value="Margaret Cecil Building|heritage">Margaret Cecil Building (Childcare)</option>
+        </optgroup>
+        <optgroup label="🏢 Non-Heritage Buildings">
+          <option value="Joyce Bennett Building|standard">Joyce Bennett Building (Childcare Office)</option>
+        </optgroup>
+        <optgroup label="🔑 Room Hire Spaces">
+          <option value="Main Meeting Room|standard">Main Meeting Room</option>
+          <option value="Commercial Kitchen|standard">Commercial Kitchen</option>
+          <option value="Arum House|standard">Arum House</option>
+          <option value="Blackwood Casual Office|standard">Blackwood Casual Office</option>
+          <option value="Narrows Quantum - NGS|standard">Narrows Quantum Casual Office (NGS)</option>
+          <option value="Narrows Quantum - NQ2|standard">Narrows Quantum Casual Office (NQ2)</option>
+        </optgroup>
+        <optgroup label="👥 Tenant Spaces">
+          <option value="MR Theatre Group|standard">MR Theatre Group</option>
+          <option value="MR & WA Health Child Development|standard">MR & WA Health Child Development</option>
+          <option value="MN Counselling|standard">MN Counselling</option>
+          <option value="WA Natural Childbirth|standard">WA Natural Childbirth</option>
+          <option value="WA Health Child & Infant Health|standard">WA Health Child & Infant Health</option>
+          <option value="WA Health Injury Management|standard">WA Health Injury Management</option>
+          <option value="MR Toy Library|standard">MR Toy Library</option>
+          <option value="Audiology|standard">Audiology</option>
+        </optgroup>
+        <optgroup label="🌿 Grounds & External">
+          <option value="Carpark & Pathways|standard">Carpark & Pathways</option>
+          <option value="Gardens & Grounds|standard">Gardens & Grounds</option>
+          <option value="External / General Site|standard">External / General Site</option>
+        </optgroup>
+      </select>
+      <div class="heritage-warning" id="heritage-warning">
+        <span>⚠️</span>
+        <span><strong>Heritage Listed Building.</strong> This building is state heritage listed. Please ensure any trades engaged are licensed and appropriate for heritage works. Do not undertake structural or material changes without heritage council approval.</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Category <span class="required">*</span></label>
+      <select id="fault-category">
+        <option value="">— Select category —</option>
+        <option>Electrical</option>
+        <option>Plumbing</option>
+        <option>Carpentry / Structural</option>
+        <option>Grounds & Gardens</option>
+        <option>Cleaning</option>
+        <option>Safety / Hazard</option>
+        <option>Heritage / Conservation</option>
+        <option>Appliances & Equipment</option>
+        <option>Pest Control</option>
+        <option>General / Other</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Description <span class="required">*</span></label>
+      <textarea id="fault-description" placeholder="Describe the issue clearly. Include what you noticed, where exactly it is, and when you first noticed it."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Priority <span class="required">*</span></label>
+      <div class="priority-group">
+        <div class="priority-btn low" onclick="selectPriority('low')">🟢 Low</div>
+        <div class="priority-btn medium" onclick="selectPriority('medium')">🟡 Medium</div>
+        <div class="priority-btn high" onclick="selectPriority('high')">🟠 High</div>
+        <div class="priority-btn urgent" onclick="selectPriority('urgent')">🔴 Urgent</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>📷 Photos (recommended)</label>
+      <div class="photo-upload" onclick="document.getElementById('photo-input').click()">
+        <div class="photo-upload-icon">📷</div>
+        <p>Tap to add photos</p>
+        <p style="font-size:0.72rem;margin-top:4px">You can select multiple photos</p>
+        <input type="file" id="photo-input" accept="image/*" multiple onchange="handlePhotos(this)">
+      </div>
+      <div class="photo-previews" id="photo-previews"></div>
+    </div>
+
+    <button class="btn-submit" onclick="submitFault()">Submit Maintenance Report</button>
+  </div>
+</div>
+
+<!-- JOBS LIST -->
+<div id="page-jobs" class="page">
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="Search jobs..." oninput="filterJobs()" id="job-search">
+  </div>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setJobFilter('all', this)">All</button>
+    <button class="filter-btn" onclick="setJobFilter('open', this)">Open</button>
+    <button class="filter-btn" onclick="setJobFilter('inprogress', this)">In Progress</button>
+    <button class="filter-btn" onclick="setJobFilter('urgent', this)">🔴 Urgent</button>
+    <button class="filter-btn" onclick="setJobFilter('heritage', this)">🏛️ Heritage</button>
+    <button class="filter-btn" onclick="setJobFilter('done', this)">Done</button>
+  </div>
+  <ul class="job-list" id="jobs-list"></ul>
+</div>
+
+<!-- SCHEDULED TASKS -->
+<div id="page-scheduled" class="page">
+  <div class="section-header">
+    <h2>📅 Scheduled Maintenance</h2>
+    <button class="btn-secondary" onclick="showAddTaskModal()">+ Add Task</button>
+  </div>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="setTaskFilter('all', this)">All</button>
+    <button class="filter-btn" onclick="setTaskFilter('overdue', this)">⚠️ Overdue</button>
+    <button class="filter-btn" onclick="setTaskFilter('thisweek', this)">This Week</button>
+    <button class="filter-btn" onclick="setTaskFilter('monthly', this)">Monthly</button>
+    <button class="filter-btn" onclick="setTaskFilter('annual', this)">Annual</button>
+  </div>
+  <div id="tasks-list"></div>
+</div>
+
+<!-- BUILDINGS -->
+<div id="page-buildings" class="page">
+  <div class="card">
+    <div class="card-title">🏛️ Heritage Listed Buildings (7)</div>
+    <div id="heritage-buildings-list"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">🏢 All Buildings & Spaces</div>
+    <div id="all-buildings-list"></div>
+  </div>
+</div>
+
+<!-- JOB DETAIL MODAL -->
+<div class="modal-overlay" id="job-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('job-modal')">×</button>
+    <h2 id="modal-job-title">Job Title</h2>
+    <div id="modal-job-content"></div>
+  </div>
+</div>
+
+<!-- ADD TASK MODAL -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('task-modal')">×</button>
+    <h2>Add Scheduled Task</h2>
+    <div class="form-group">
+      <label>Task Name</label>
+      <input type="text" id="new-task-name" placeholder="e.g. Fire extinguisher inspection">
+    </div>
+    <div class="form-group">
+      <label>Location</label>
+      <select id="new-task-location">
+        <option value="All Buildings">All Buildings</option>
+        <option>Old Church</option><option>Isaac's Cottage</option><option>Doctor's Surgery</option>
+        <option>Matron's Quarters</option><option>Nurses' Quarters</option><option>Main Building</option>
+        <option>Margaret Cecil Building</option><option>Joyce Bennett Building</option>
+        <option>Commercial Kitchen</option><option>Gardens & Grounds</option><option>General Site</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Frequency</label>
+      <select id="new-task-freq">
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly" selected>Monthly</option>
+        <option value="quarterly">Quarterly</option>
+        <option value="biannual">6-Monthly</option>
+        <option value="annual">Annual</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Next Due Date</label>
+      <input type="date" id="new-task-due">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="new-task-notes" placeholder="Any additional notes or instructions..."></textarea>
+    </div>
+    <button class="btn-submit" onclick="addScheduledTask()">Add Task</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== DATA STORE ==========
+let jobs = JSON.parse(localStorage.getItem('mrcc-jobs') || '[]');
+let tasks = JSON.parse(localStorage.getItem('mrcc-tasks') || '[]');
+let selectedPriority = '';
+let currentJobFilter = 'all';
+let currentTaskFilter = 'all';
+let photoDataUrls = [];
+
+// Default scheduled tasks
+if (tasks.length === 0) {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const addDays = (d,n) => { let x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  tasks = [
+    { id: 1, name: 'Fire extinguisher check', location: 'All Buildings', freq: 'monthly', due: fmt(addDays(today,5)), notes: 'Check pressure gauges on all extinguishers. Log any that need servicing.', done: false },
+    { id: 2, name: 'Gutter & roof check', location: 'Old Church', freq: 'quarterly', due: fmt(addDays(today,-3)), notes: 'Heritage building — check gutters, downpipes, and roof condition after rain season.', done: false },
+    { id: 3, name: 'Commercial kitchen equipment check', location: 'Commercial Kitchen', freq: 'monthly', due: fmt(addDays(today,8)), notes: 'Check oven, fridge temps, dishwasher, and exhaust fan operation.', done: false },
+    { id: 4, name: 'Pest inspection', location: 'All Buildings', freq: 'quarterly', due: fmt(addDays(today,14)), notes: 'Book licensed pest inspector. Heritage buildings require specialist approval.', done: false },
+    { id: 5, name: 'Emergency lighting test', location: 'Main Building', freq: 'monthly', due: fmt(addDays(today,2)), notes: 'Test all emergency exit lights and record results.', done: false },
+    { id: 6, name: 'Gardens & grounds tidy', location: 'Gardens & Grounds', freq: 'weekly', due: fmt(addDays(today,1)), notes: 'Mow, edge, remove hazards from pathways.', done: false },
+    { id: 7, name: 'Smoke alarm test', location: 'All Buildings', freq: 'monthly', due: fmt(addDays(today,10)), notes: 'Test all smoke alarms and replace batteries where needed.', done: false },
+    { id: 8, name: 'Heritage building condition report', location: 'All Heritage', freq: 'biannual', due: fmt(addDays(today,45)), notes: 'Photograph and document condition of all 7 heritage buildings for records.', done: false },
+  ];
+  saveTasks();
+}
+
+function saveJobs() { localStorage.setItem('mrcc-jobs', JSON.stringify(jobs)); }
+function saveTasks() { localStorage.setItem('mrcc-tasks', JSON.stringify(tasks)); }
+
+// ========== NAVIGATION ==========
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  event.target.classList.add('active');
+  if (id === 'dashboard') renderDashboard();
+  if (id === 'jobs') renderJobs();
+  if (id === 'scheduled') renderTasks();
+  if (id === 'buildings') renderBuildings();
+}
+
+// ========== HERITAGE CHECK ==========
+function checkHeritage() {
+  const val = document.getElementById('fault-location').value;
+  const warning = document.getElementById('heritage-warning');
+  warning.classList.toggle('show', val.includes('|heritage'));
+}
+
+// ========== PRIORITY ==========
+function selectPriority(p) {
+  selectedPriority = p;
+  document.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelector(`.priority-btn.${p}`).classList.add('selected');
+}
+
+// ========== PHOTOS ==========
+function handlePhotos(input) {
+  photoDataUrls = [];
+  document.getElementById('photo-previews').innerHTML = '';
+  const files = Array.from(input.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      photoDataUrls.push(e.target.result);
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'photo-preview';
+      document.getElementById('photo-previews').appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ========== SUBMIT FAULT ==========
+function submitFault() {
+  const name = document.getElementById('reporter-name').value.trim();
+  const contact = document.getElementById('reporter-contact').value.trim();
+  const locationRaw = document.getElementById('fault-location').value;
+  const category = document.getElementById('fault-category').value;
+  const description = document.getElementById('fault-description').value.trim();
+
+  if (!name || !locationRaw || !category || !description || !selectedPriority) {
+    showToast('⚠️ Please fill in all required fields and select a priority', true);
+    return;
+  }
+
+  const locationParts = locationRaw.split('|');
+  const location = locationParts[0];
+  const isHeritage = locationParts[1] === 'heritage';
+
+  const job = {
+    id: Date.now(),
+    title: `${category} – ${location}`,
+    reporter: name,
+    contact: contact,
+    location: location,
+    category: category,
+    description: description,
+    priority: selectedPriority,
+    heritage: isHeritage,
+    status: 'open',
+    photos: [...photoDataUrls],
+    date: new Date().toLocaleDateString('en-AU'),
+    dateTs: Date.now(),
+    notes: []
+  };
+
+  jobs.unshift(job);
+  saveJobs();
+
+  // Reset form
+  document.getElementById('reporter-name').value = '';
+  document.getElementById('reporter-contact').value = '';
+  document.getElementById('fault-location').value = '';
+  document.getElementById('fault-category').value = '';
+  document.getElementById('fault-description').value = '';
+  document.getElementById('photo-previews').innerHTML = '';
+  document.getElementById('photo-input').value = '';
+  document.getElementById('heritage-warning').classList.remove('show');
+  document.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('selected'));
+  selectedPriority = '';
+  photoDataUrls = [];
+
+  showToast('✅ Report submitted successfully!');
+  setTimeout(() => {
+    document.querySelector('nav button:nth-child(3)').click();
+    renderJobs();
+  }, 1200);
+}
+
+// ========== JOBS LIST ==========
+function renderJobs() {
+  const list = document.getElementById('jobs-list');
+  const search = (document.getElementById('job-search')?.value || '').toLowerCase();
+
+  let filtered = jobs.filter(j => {
+    const matchSearch = !search || j.title.toLowerCase().includes(search) || j.location.toLowerCase().includes(search) || j.description.toLowerCase().includes(search);
+    let matchFilter = true;
+    if (currentJobFilter === 'open') matchFilter = j.status === 'open';
+    else if (currentJobFilter === 'inprogress') matchFilter = j.status === 'inprogress';
+    else if (currentJobFilter === 'done') matchFilter = j.status === 'done';
+    else if (currentJobFilter === 'urgent') matchFilter = j.priority === 'urgent' || j.priority === 'high';
+    else if (currentJobFilter ===
