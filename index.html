@@ -564,4 +564,231 @@ function renderJobs() {
     else if (currentJobFilter === 'inprogress') matchFilter = j.status === 'inprogress';
     else if (currentJobFilter === 'done') matchFilter = j.status === 'done';
     else if (currentJobFilter === 'urgent') matchFilter = j.priority === 'urgent' || j.priority === 'high';
-    else if (currentJobFilter ===
+    else if (currentJobFilter === 'high') matchFilter = j.priority === 'high';
+      return  matchSearch && matchFilter;
+    });
+
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<li style="text-align:center;padding:32px;color:var(--mid);">No jobs found</li>';
+      return;
+    }
+
+    filtered.sort((a, b) => {
+      const order = {urgent:0, high:1, medium:2, low:3};
+      return (order[a.priority]||4) - (order[b.priority]||4);
+    });
+
+    filtered.forEach(j => {
+      const li = document.createElement('li');
+      li.className = 'job-item ' + (j.priority||'') + (j.status === 'done' ? ' status-done' : '');
+      const hBadge = j.isHeritage ? '<span class="heritage-badge">&#127963; Heritage</span>' : '';
+      const statusTag = '<span class="tag tag-status-' + (j.status||'open').replace(' ','') + '">' + (j.status||'open') + '</span>';
+      const priorityTag = '<span class="tag tag-priority-' + (j.priority||'low') + '">' + (j.priority||'low') + '</span>';
+      li.innerHTML = '<div class="job-header"><span class="job-title">' + j.title + '</span>' + hBadge + '</div>' +
+        '<div class="job-meta">&#128205; ' + j.location + ' &nbsp;|&nbsp; &#128194; ' + j.category + ' &nbsp;|&nbsp; &#128100; ' + j.reportedBy + ' &nbsp;|&nbsp; &#128197; ' + j.date + '</div>' +
+        '<div class="job-tags">' + priorityTag + statusTag + '</div>';
+      li.onclick = () => openJobModal(j.id);
+      list.appendChild(li);
+    });
+  }
+
+function setJobFilter(filter, btn) {
+  currentJobFilter = filter;
+  document.querySelectorAll('#page-jobs .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderJobs();
+}
+
+// ========== JOB MODAL ==========
+function openJobModal(id) {
+  const j = jobs.find(x => x.id === id);
+  if (!j) return;
+  const modal = document.getElementById('job-modal');
+  const titleEl = document.getElementById('modal-job-title');
+  const contentEl = document.getElementById('modal-job-content');
+  if (titleEl) titleEl.textContent = j.title;
+  if (contentEl) {
+    const hBadge = j.isHeritage ? '<div class="heritage-badge" style="margin-bottom:10px;">&#127963; Heritage Listed - Contact Council</div>' : '';
+    contentEl.innerHTML = hBadge +
+      '<p><strong>&#128205; Location:</strong> ' + j.location + '</p>' +
+      '<p><strong>&#128194; Category:</strong> ' + j.category + '</p>' +
+      '<p><strong>&#9889; Priority:</strong> ' + (j.priority||'low') + '</p>' +
+      '<p><strong>&#128203; Status:</strong> <select id="modal-status-select" style="padding:6px;border-radius:6px;border:1.5px solid #ddd;"><option value="open"' + (j.status==='open'?' selected':'') + '>Open</option><option value="inprogress"' + (j.status==='inprogress'?' selected':'') + '>In Progress</option><option value="done"' + (j.status==='done'?' selected':'') + '>Done</option></select></p>' +
+      '<p><strong>&#128221; Description:</strong> ' + (j.description||'No description') + '</p>' +
+      '<p><strong>&#128100; Reported by:</strong> ' + j.reportedBy + (j.contact ? ' (' + j.contact + ')' : '') + '</p>' +
+      '<p><strong>&#128197; Date:</strong> ' + j.date + '</p>' +
+      (j.photos && j.photos.length ? '<div style="margin-top:10px;">' + j.photos.map(p => '<img src="' + p + '" class="photo-preview">').join('') + '</div>' : '') +
+      '<button class="btn-submit" onclick="saveJobStatusFromModal(' + id + ')" style="margin-top:16px;">Save Status</button>';
+  }
+  if (modal) modal.style.display = 'flex';
+}
+
+function saveJobStatusFromModal(id) {
+  const sel = document.getElementById('modal-status-select');
+  if (!sel) return;
+  const j = jobs.find(x => x.id === id);
+  if (j) {
+    j.status = sel.value;
+    saveJobs();
+    showToast('Status updated!');
+    closeModal('job-modal');
+    renderJobs();
+    renderDashboard();
+  }
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.style.display = 'none';
+}
+
+// ========== SCHEDULE ==========
+function renderSchedule() {
+  const list = document.getElementById('tasks-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const search = (document.getElementById('task-search')?.value || '').toLowerCase();
+  const filter = currentTaskFilter;
+  let filtered = tasks.filter(t => {
+    const matchSearch = !search || t.title.toLowerCase().includes(search) || t.location.toLowerCase().includes(search);
+    let matchFilter = true;
+    if (filter === 'overdue') matchFilter = t.status === 'overdue';
+    else if (filter === 'thisweek') matchFilter = t.status === 'upcoming';
+    else if (filter === 'done') matchFilter = t.status === 'done';
+    return matchSearch && matchFilter;
+  });
+  if (filtered.length === 0) {
+    list.innerHTML = '<li style="text-align:center;padding:32px;color:var(--mid);">No tasks found</li>';
+    return;
+  }
+  filtered.forEach(t => {
+    const li = document.createElement('li');
+    li.className = 'job-item ' + (t.status === 'overdue' ? 'urgent' : t.status === 'done' ? 'status-done' : '');
+    li.innerHTML = '<div class="job-header"><span class="job-title">' + t.title + '</span></div>' +
+      '<div class="job-meta">&#128205; ' + t.location + ' &nbsp;|&nbsp; &#128197; Due: ' + t.dueDate + ' &nbsp;|&nbsp; &#128260; ' + t.frequency + '</div>' +
+      '<div class="job-tags"><span class="tag tag-status-' + (t.status||'upcoming').replace(' ','') + '">' + (t.status||'upcoming') + '</span></div>';
+    list.appendChild(li);
+  });
+}
+
+function setTaskFilter(filter, btn) {
+  currentTaskFilter = filter;
+  document.querySelectorAll('#page-scheduled .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderSchedule();
+}
+
+function showAddTaskModal() {
+  const modal = document.getElementById('task-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function addScheduledTask() {
+  const title = document.getElementById('new-task-name')?.value.trim();
+  const location = document.getElementById('new-task-location')?.value.trim();
+  const freq = document.getElementById('new-task-freq')?.value || 'monthly';
+  const due = document.getElementById('new-task-due')?.value;
+  const notes = document.getElementById('new-task-notes')?.value.trim();
+  if (!title || !location || !due) { showToast('Please fill in title, location and due date.'); return; }
+  const task = { id: Date.now(), title, location, frequency: freq, dueDate: due, notes: notes||'', status: 'upcoming' };
+  tasks.push(task);
+  saveTasks();
+  document.getElementById('new-task-name').value = '';
+  document.getElementById('new-task-location').value = '';
+  if (document.getElementById('new-task-due')) document.getElementById('new-task-due').value = '';
+  if (document.getElementById('new-task-notes')) document.getElementById('new-task-notes').value = '';
+  showToast('Task added!');
+  closeModal('task-modal');
+  renderSchedule();
+}
+
+// ========== TOAST ==========
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ========== DASHBOARD ==========
+function renderDashboard() {
+  const urgentCount = jobs.filter(j => (j.priority === 'urgent' || j.priority === 'high') && j.status !== 'done').length;
+  const openCount = jobs.filter(j => j.status !== 'done').length;
+  const heritageCount = jobs.filter(j => j.isHeritage && j.status !== 'done').length;
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now - 30*24*60*60*1000);
+  const doneCount = jobs.filter(j => j.status === 'done' && new Date(j.date) >= thirtyDaysAgo).length;
+  const el = (id, val) => { const e = document.getElementById(id); if(e) e.textContent = val; };
+  el('stat-urgent', urgentCount);
+  el('stat-open', openCount);
+  el('stat-heritage', heritageCount);
+  el('stat-done', doneCount);
+  const urgentList = document.getElementById('dashboard-urgent-list');
+  if (urgentList) {
+    const urgent = jobs.filter(j => (j.priority === 'urgent' || j.priority === 'high') && j.status !== 'done');
+    if (urgent.length === 0) {
+      urgentList.innerHTML = '<div style="text-align:center;padding:24px;"><span style="font-size:2rem;">&#9989;</span><p style="color:var(--mid);margin-top:8px;">No urgent jobs right now</p></div>';
+    } else {
+      urgentList.innerHTML = urgent.slice(0,5).map(j =>
+        '<div class="job-item ' + j.priority + '" onclick="openJobModal(' + j.id + ')" style="margin-bottom:8px;cursor:pointer;">' +
+        '<div class="job-header"><span class="job-title">' + j.title + '</span></div>' +
+        '<div class="job-meta">&#128205; ' + j.location + ' &nbsp;|&nbsp; &#128197; ' + j.date + '</div></div>'
+      ).join('');
+    }
+  }
+  const tasksList = document.getElementById('dashboard-tasks-list');
+  if (tasksList) {
+    const upcoming = tasks.filter(t => t.status !== 'done').slice(0,5);
+    if (upcoming.length === 0) {
+      tasksList.innerHTML = '<p style="color:var(--mid);padding:16px;text-align:center;">No upcoming tasks</p>';
+    } else {
+      tasksList.innerHTML = upcoming.map(t =>
+        '<div class="job-item" style="margin-bottom:8px;">' +
+        '<div class="job-title">' + t.title + '</div>' +
+        '<div class="job-meta">&#128205; ' + t.location + ' &nbsp;|&nbsp; &#128197; Due: ' + t.dueDate + '</div></div>'
+      ).join('');
+    }
+  }
+}
+
+// ========== BUILDINGS ==========
+function renderBuildings() {
+  const buildings = [
+    { name: 'Old Butter Factory', heritage: true, notes: 'Listed building - all works require Council approval' },
+    { name: 'Main Pavilion', heritage: false, notes: 'General maintenance' },
+    { name: 'Change Rooms', heritage: false, notes: '' },
+    { name: 'Caretaker Cottage', heritage: true, notes: 'Heritage listed - contact Council before any structural work' },
+    { name: 'Equipment Shed', heritage: false, notes: '' },
+    { name: 'Toilet Block A', heritage: false, notes: '' },
+    { name: 'Toilet Block B', heritage: false, notes: '' },
+    { name: 'Clubroom / Bar', heritage: false, notes: '' }
+  ];
+  const heritageList = document.getElementById('heritage-buildings-list');
+  const allList = document.getElementById('all-buildings-list');
+  const heritage = buildings.filter(b => b.heritage);
+  const all = buildings.filter(b => !b.heritage);
+  if (heritageList) heritageList.innerHTML = heritage.map(b =>
+    '<div class="job-item heritage"><div class="job-title">&#127963; ' + b.name + '</div>' +
+    '<div class="job-meta">' + (b.notes || 'Heritage listed building') + '</div></div>'
+  ).join('');
+  if (allList) allList.innerHTML = all.map(b =>
+    '<div class="job-item"><div class="job-title">&#127968; ' + b.name + '</div>' +
+    '<div class="job-meta">' + (b.notes || 'Standard maintenance building') + '</div></div>'
+  ).join('');
+}
+
+// Alias for showPage compatibility
+function renderTasks() { renderSchedule(); }
+
+// ========== INIT ==========
+function init() {
+  renderDashboard();
+}
+init();
+</script>
+</body>
+</html>
