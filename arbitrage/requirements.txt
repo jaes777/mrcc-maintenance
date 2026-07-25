@@ -1,0 +1,10 @@
+# The tool has NO required dependencies. It runs on a stock Python 3.9+ install.
+#
+# These are optional extras:
+#
+#   anthropic>=0.40    enables `--ai-review`, an independent Claude reviewer that
+#                      critiques a passing strategy in plain English.
+#                      Also needs ANTHROPIC_API_KEY set in your environment.
+#
+# Install with:  pip install -r requirements.txt
+anthropic>=0.40
