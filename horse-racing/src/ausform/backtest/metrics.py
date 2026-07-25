@@ -389,10 +389,29 @@ def simulate_bankroll(
 # Report
 # --------------------------------------------------------------------------
 
+def comparable_subset(predictions: Sequence[RacePrediction]
+                      ) -> list[RacePrediction]:
+    """Races where BOTH a model and a market probability exist.
+
+    Comparing a model averaged over every race against a market averaged
+    over only the priced ones is not a comparison -- unpriced races are
+    typically small, odd fields, and whichever side is scored on them is
+    being judged on a different problem. Every head-to-head figure in the
+    report is computed on this intersection.
+    """
+    return [
+        p for p in predictions
+        if p.winner_index is not None
+        and p.market_probabilities is not None
+        and np.all(np.isfinite(p.market_probabilities))
+    ]
+
+
 def full_report(predictions: Sequence[RacePrediction],
                 commission: float = 0.0) -> dict:
     """Everything, with the market baseline alongside every model figure."""
-    has_market = any(p.market_probabilities is not None for p in predictions)
+    shared = comparable_subset(predictions)
+    has_market = bool(shared)
 
     report = {
         "races": len([p for p in predictions if p.winner_index is not None]),
@@ -431,17 +450,26 @@ def full_report(predictions: Sequence[RacePrediction],
     }
 
     if has_market:
+        # Head-to-head figures are computed on the shared subset only, so
+        # the two sides are scored on exactly the same races.
+        market_ll = log_loss(shared, use_market=True)
+        model_ll_shared = log_loss(shared)
+
         report["baselines"].update({
-            "market_log_loss": log_loss(predictions, use_market=True),
-            "market_brier": brier_score(predictions, use_market=True),
-            "market_top1_accuracy": top1_accuracy(predictions, use_market=True),
+            "market_log_loss": market_ll,
+            "market_brier": brier_score(shared, use_market=True),
+            "market_top1_accuracy": top1_accuracy(shared, use_market=True),
             "market_calibration_error": expected_calibration_error(
-                predictions, use_market=True),
+                shared, use_market=True),
         })
-        market_ll = report["baselines"]["market_log_loss"]
-        model_ll = report["model"]["log_loss"]
-        if market_ll and np.isfinite(market_ll) and market_ll > 0:
+        report["model"].update({
+            "log_loss_on_priced_races": model_ll_shared,
+            "top1_accuracy_on_priced_races": top1_accuracy(shared),
+        })
+        report["comparable_races"] = len(shared)
+
+        if np.isfinite(market_ll) and market_ll > 0 and np.isfinite(model_ll_shared):
             report["model"]["log_loss_improvement_vs_market_pct"] = (
-                100.0 * (1.0 - model_ll / market_ll))
+                100.0 * (1.0 - model_ll_shared / market_ll))
 
     return report

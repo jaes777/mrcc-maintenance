@@ -19,8 +19,6 @@ import pickle
 import sys
 from pathlib import Path
 
-import numpy as np
-
 from . import __version__
 
 log = logging.getLogger("ausform")
@@ -104,11 +102,19 @@ def _print_report(report: dict) -> None:
     base = report["baselines"]
     print(f"\n  Races evaluated : {report['races']:,} "
           f"over {report.get('windows', 0)} walk-forward windows")
+    if "comparable_races" in report:
+        print(f"  Of those, {report['comparable_races']:,} had a full market and "
+              f"are used for the head-to-head below.")
+
     print("\n  PROBABILITY QUALITY  (log-loss, lower is better)")
     print(f"    guessing at random        : {base['uniform_log_loss']:.4f}")
     if "market_log_loss" in base:
         print(f"    the betting market        : {base['market_log_loss']:.4f}")
-    print(f"    this model                : {model['log_loss']:.4f}")
+        print(f"    this model                : "
+              f"{model['log_loss_on_priced_races']:.4f}")
+    else:
+        print(f"    this model                : {model['log_loss']:.4f}")
+
     if "log_loss_improvement_vs_market_pct" in model:
         improvement = model["log_loss_improvement_vs_market_pct"]
         print(f"    -> model beats market by  : {improvement:+.2f}%")
@@ -116,7 +122,8 @@ def _print_report(report: dict) -> None:
             print("       WARNING: beating the market by more than a few percent "
                   "almost always means leakage, not skill.")
 
-    print(f"\n  Top-1 accuracy   : model {model['top1_accuracy']:.1%}", end="")
+    accuracy = model.get("top1_accuracy_on_priced_races", model["top1_accuracy"])
+    print(f"\n  Top-1 accuracy   : model {accuracy:.1%}", end="")
     if "market_top1_accuracy" in base:
         print(f"   market {base['market_top1_accuracy']:.1%}")
     else:

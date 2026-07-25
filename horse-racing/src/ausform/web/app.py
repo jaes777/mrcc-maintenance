@@ -10,8 +10,6 @@ from __future__ import annotations
 import datetime as _dt
 import pickle
 from pathlib import Path
-from typing import Optional
-
 from ..analyse import RaceAnalysis, analyse_race
 from ..features import RollingContext
 

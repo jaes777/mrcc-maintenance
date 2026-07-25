@@ -32,7 +32,7 @@ from __future__ import annotations
 import datetime as _dt
 import math
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from ..types import Race

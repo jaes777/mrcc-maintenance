@@ -3,22 +3,15 @@
 from __future__ import annotations
 
 import datetime as _dt
+import math
 
 import numpy as np
 import pytest
 
 from ausform.backtest import WalkForwardBacktest, WalkForwardConfig
-from ausform.backtest.metrics import RacePrediction, log_loss, top1_accuracy
-from ausform.betting.odds import devig
+from ausform.backtest.metrics import RacePrediction, top1_accuracy
 from ausform.data.simulator import SeasonSimulator
-from ausform.features import RollingContext, build_features
-from ausform.model import (
-    ConditionalLogit,
-    MarketBlend,
-    RaceObservation,
-    TwoStageModel,
-    observations_from_featuresets,
-)
+from ausform.model import ConditionalLogit, MarketBlend, RaceObservation
 from ausform.model.blend import BlendedRace
 
 
@@ -207,8 +200,20 @@ def test_metrics_compare_like_with_like():
             odds=np.array([1.7, 2.3]),
             winner_index=1, field_size=2),
     ]
-    # Race 2 has no market, so it must be excluded from the market figure
-    # -- and the model figure over the same subset is what to compare.
-    assert np.isfinite(log_loss(predictions))
-    assert np.isfinite(log_loss(predictions, use_market=True))
+    # Race 2 has no market, so the head-to-head must be scored on race 1
+    # alone -- otherwise the two sides are averaged over different races.
+    from ausform.backtest.metrics import comparable_subset, full_report
+
+    shared = comparable_subset(predictions)
+    assert [p.race_id for p in shared] == ["1"]
+
+    report = full_report(predictions)
+    assert report["comparable_races"] == 1
+    # The comparison figure must come from the shared subset, and race 1's
+    # model probability for the winner is 0.5.
+    assert report["model"]["log_loss_on_priced_races"] == pytest.approx(
+        -math.log(0.5))
+    assert report["baselines"]["market_log_loss"] == pytest.approx(
+        -math.log(0.4))
+    assert np.isfinite(report["model"]["log_loss_improvement_vs_market_pct"])
     assert 0.0 <= top1_accuracy(predictions) <= 1.0

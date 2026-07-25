@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Sequence
 
 import numpy as np
 from scipy.optimize import minimize
@@ -188,17 +188,38 @@ def size_bets(
     not bet -- there is no "bet it smaller because it is close".
     """
     policy.validate()
-    stakes: list[Stake] = []
 
+    qualifying: list[tuple[str, str, float, float, float]] = []
     for selection, bet_type, probability, odds in candidates:
         if probability < policy.min_probability or odds <= 1.0:
             continue
         edge = expected_value(probability, odds, commission)
         if edge < policy.min_edge:
             continue
+        qualifying.append((selection, bet_type, probability, odds, edge))
 
+    # Win bets within one race are mutually exclusive -- at most one can
+    # land -- so sizing them independently over-stakes the race. Solve the
+    # joint log-growth problem for those, and size everything else (place
+    # bets, which can all win together) independently.
+    win_bets = [q for q in qualifying if q[1] == "win"]
+
+    joint: dict[str, float] = {}
+    if len(win_bets) > 1:
+        fractions = kelly_multiple_runners(
+            [q[2] for q in win_bets], [q[3] for q in win_bets],
+            commission=commission, max_total=policy.max_race_pct)
+        joint = {q[0]: float(f) for q, f in zip(win_bets, fractions)}
+
+    stakes: list[Stake] = []
+    for selection, bet_type, probability, odds, edge in qualifying:
         full = kelly_fraction(probability, odds, commission)
-        fraction = min(full * policy.kelly_fraction, policy.max_bet_pct)
+        if bet_type == "win" and selection in joint:
+            fraction = joint[selection] * policy.kelly_fraction
+        else:
+            fraction = full * policy.kelly_fraction
+
+        fraction = min(fraction, policy.max_bet_pct)
         amount = fraction * bankroll
         if amount < policy.min_stake:
             continue

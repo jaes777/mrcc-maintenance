@@ -17,7 +17,6 @@ from ausform.betting.exotics import (
     place_probabilities,
     places_paid,
     position_probabilities,
-    quinella_probability,
 )
 from ausform.betting.odds import (
     booksum,

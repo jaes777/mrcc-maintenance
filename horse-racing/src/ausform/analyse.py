@@ -18,7 +18,6 @@ is not finding value, it is finding noise.
 
 from __future__ import annotations
 
-import datetime as _dt
 from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
@@ -143,7 +142,7 @@ def _explain(runner: Runner, race: Race, assessment_rank: int,
         if ratio > 1.25:
             notes.append(f"Model rates it {ratio:.0%} of market price -- overpriced")
         elif ratio < 0.8:
-            notes.append(f"Model rates it shorter than the market -- underpriced")
+            notes.append("Model rates it shorter than the market -- underpriced")
 
     return notes
 
