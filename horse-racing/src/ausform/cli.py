@@ -6,6 +6,7 @@
     ausform fetch-betfair download free Betfair Australian results
     ausform train         fit a model and save it
     ausform analyse       assess a race and suggest bets
+    ausform paper         forward test on live races without staking money
     ausform serve         start the local web dashboard
 """
 
@@ -327,6 +328,129 @@ def cmd_analyse(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_paper(args: argparse.Namespace) -> int:
+    """Daily forward-test cycle: predict, settle, report."""
+    from .analyse import analyse_race
+    from .betting.staking import StakingPolicy
+    from .data.betfair import BetfairHistorical
+    from .data.tab import TabClient
+    from .features import RollingContext
+    from .paper import PaperTrader
+
+    with PaperTrader(args.paper_db) as trader:
+        if args.action in ("predict", "run"):
+            if not Path(args.model).exists():
+                print(f"No model at {args.model}. Run `ausform train` first.")
+                return 1
+            payload = pickle.loads(Path(args.model).read_bytes())
+            model = payload["model"]
+            context = payload.get("context") or RollingContext()
+
+            target = (_dt.date.fromisoformat(args.date) if args.date
+                      else _dt.date.today())
+            client = TabClient(jurisdiction=args.jurisdiction)
+            meetings = client.meetings(target)
+            if not meetings:
+                print(f"No Australian thoroughbred meetings found for {target}.")
+                return 0
+
+            policy = StakingPolicy(kelly_fraction=args.kelly,
+                                   min_edge=args.min_edge)
+            recorded = staked = 0
+            for meeting in meetings:
+                for race in meeting.races:
+                    full = client.race(target, race.venue_mnemonic or "",
+                                       race.race_number)
+                    if full is None or not full.runners:
+                        continue
+                    full.track_condition = race.track_condition
+                    full.venue_mnemonic = race.venue_mnemonic
+                    analysis = analyse_race(full, model, context,
+                                            bankroll=args.bankroll, policy=policy)
+                    recorded += trader.record(analysis)
+                    staked += len(analysis.stakes)
+                    if analysis.stakes:
+                        print(f"  {full.track.name} R{full.race_number}: "
+                              + ", ".join(f"{s.bet_type} {s.selection} "
+                                          f"${s.amount:.2f} @ ${s.odds:.2f}"
+                                          for s in analysis.stakes))
+            print(f"\nRecorded {recorded} predictions across {len(meetings)} "
+                  f"meetings; {staked} qualified as bets.")
+            if staked == 0:
+                print("No bets today. That is the normal outcome, not a fault.")
+
+        if args.action in ("settle", "run"):
+            pending = trader.pending_races()
+            if not pending:
+                print("Nothing pending to settle.")
+            else:
+                dates = sorted({d for _, d in pending})
+                print(f"Settling {len(pending)} races across {len(dates)} days...")
+                client = BetfairHistorical()
+                settled = 0
+                for day in dates:
+                    rows = client.fetch_day(_dt.date.fromisoformat(day))
+                    if not rows:
+                        continue
+                    settled += trader.settle_many(client.to_races(rows))
+                print(f"Settled {settled} rows.")
+
+        if args.action in ("report", "run"):
+            _print_paper_report(trader.summary(
+                since=_dt.date.fromisoformat(args.since) if args.since else None))
+    return 0
+
+
+def _print_paper_report(summary) -> None:
+    print("\n" + "=" * 66)
+    print("FORWARD TEST (paper trading)")
+    print("=" * 66)
+    print(f"  Predictions recorded : {summary.predictions:,} "
+          f"({summary.settled_predictions:,} settled)")
+    print(f"  Qualified as bets    : {summary.bets:,} "
+          f"({summary.settled_bets:,} settled)")
+
+    if summary.settled_predictions:
+        print("\n  PROBABILITY QUALITY (the part a short test can actually tell you)")
+        if summary.log_loss is not None:
+            print(f"    model log-loss  : {summary.log_loss:.4f}")
+        if summary.market_log_loss:
+            print(f"    market log-loss : {summary.market_log_loss:.4f}")
+            delta = 100.0 * (1 - summary.log_loss / summary.market_log_loss)
+            print(f"    -> model vs market: {delta:+.2f}%")
+        if summary.top1_accuracy is not None:
+            print(f"    top-1: model {summary.top1_accuracy:.1%}", end="")
+            if summary.market_top1_accuracy is not None:
+                print(f"   market {summary.market_top1_accuracy:.1%}")
+            else:
+                print()
+
+    if summary.calibration:
+        print("\n  CALIBRATION  (predicted vs what actually happened)")
+        for band, count, predicted, observed in summary.calibration:
+            flag = "" if count >= 30 else "  (thin)"
+            print(f"    {band:>10}  n={count:>5}  said {predicted:>6.1%}  "
+                  f"got {observed:>6.1%}{flag}")
+
+    if summary.mean_price_drift is not None:
+        direction = ("drifted (lengthened)" if summary.mean_price_drift > 0
+                     else "firmed (shortened)")
+        print(f"\n  Prices {direction} by {abs(summary.mean_price_drift):.1%} "
+              f"on average between your decision and the jump.")
+        if summary.mean_price_drift < -0.03:
+            print("    Prices firming after you act suggests the market agrees "
+                  "with you -- but also that the value may be gone by the time "
+                  "you could bet it.")
+
+    if summary.settled_bets:
+        print("\n  BETTING  (settled at the price recorded BEFORE the race)")
+        print(f"    staked ${summary.staked:,.2f}, returned "
+              f"${summary.returned:,.2f}, profit ${summary.profit:+,.2f}")
+        print(f"    strike rate {summary.strike_rate:.1%}")
+
+    print(f"\n  {summary.verdict()}")
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     try:
         import uvicorn
@@ -399,6 +523,20 @@ def build_parser() -> argparse.ArgumentParser:
     analyse.add_argument("--min-edge", type=float, default=0.05)
     analyse.add_argument("--limit", type=int, default=10)
     analyse.set_defaults(func=cmd_analyse)
+
+    paper = sub.add_parser(
+        "paper", help="forward test on live races without staking money")
+    paper.add_argument("action", choices=["run", "predict", "settle", "report"],
+                       help="'run' does predict + settle + report")
+    paper.add_argument("--paper-db", default="paper.db")
+    paper.add_argument("--model", default="model.pkl")
+    paper.add_argument("--date", help="YYYY-MM-DD (default: today)")
+    paper.add_argument("--since", help="report only from this date")
+    paper.add_argument("--jurisdiction", default="NSW")
+    paper.add_argument("--bankroll", type=float, default=1000.0)
+    paper.add_argument("--kelly", type=float, default=0.25)
+    paper.add_argument("--min-edge", type=float, default=0.05)
+    paper.set_defaults(func=cmd_paper)
 
     serve = sub.add_parser("serve", help="start the web dashboard")
     serve.add_argument("--db", default="ausform.db")

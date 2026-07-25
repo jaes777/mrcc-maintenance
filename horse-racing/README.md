@@ -205,6 +205,84 @@ of sample, it has no business placing a bet, however good its winners look.
 
 ---
 
+## Forward testing on live races
+
+Backtests lie in a hundred quiet ways. Forward testing does not, provided
+one rule holds: **record the prediction and the price before the race, and
+settle at that recorded price.** The `paper` command enforces this.
+
+```bash
+ausform paper run --model model.pkl        # predict today, settle what's due, report
+```
+
+Or the three steps separately:
+
+```bash
+ausform paper predict --model model.pkl    # log today's races, before they run
+ausform paper settle                       # score them once results are out
+ausform paper report --since 2026-07-01
+```
+
+Run it daily. On Linux or macOS:
+
+```
+0 9  * * *  cd /path/to/horse-racing && .venv/bin/ausform paper predict --model model.pkl
+0 23 * * *  cd /path/to/horse-racing && .venv/bin/ausform paper settle && .venv/bin/ausform paper report
+```
+
+### Why settlement ignores the starting price
+
+If you score at SP you are grading a bet you could not have placed. The
+price moved after you decided, and in racing it moved *because* of
+information you did not have — late money is informed money. Every payout
+here uses `price_at_decision`. The SP is stored anyway, as a diagnostic:
+the report shows how far prices moved between your decision and the jump,
+and prices that consistently firm after you act mean the value was gone
+before you could take it.
+
+### What a few weeks can and cannot tell you
+
+It **cannot** tell you whether you have an edge. That needs on the order of
+14,000 bets. Any yield you see over a few weeks is noise, and the report
+says so in as many words.
+
+It **can** tell you, quickly and usefully:
+
+- whether the pipeline survives real data shapes
+- whether the probabilities are calibrated — when it says 8%, does it
+  happen 8% of the time? You get a readable answer within a few hundred
+  runners, and this is the single most valuable thing to watch
+- whether the model disagrees with the market in one systematic direction
+- whether the prices you are pricing against still exist when you'd bet
+
+Every runner is recorded, not just the ones that qualify as bets, precisely
+so calibration can be measured on the full field.
+
+## A note on scraping
+
+Use Betfair's published files and the TAB service at a polite rate, as
+shipped. Both are reachable without pretending to be somebody else.
+
+What this tool will not do is disguise its traffic to get around blocking.
+Racing Australia's terms of use specifically prohibit automated access and
+reserve legal remedies; racing.com sits under the same licensing umbrella;
+TAB sits behind bot protection, and defeating it means representing
+automated requests as a human browser. Australia also has no general
+text-and-data-mining exception, so "it's only facts" is a weaker defence
+here than you might expect.
+
+The practical point is that you do not need any of that. Betfair publishes
+real Australian results and starting prices, free and without a login,
+*explicitly for modellers* — which is exactly the data a forward test
+consumes. The TAB client provides live fields and prices for the same
+races. Between them you can run this indefinitely without a single request
+that anyone would object to. A VPN protects your privacy generally and
+that's your business; it isn't a licence the data owners have granted.
+
+If you later want full form data commercially, licence it — Racing
+Australia distributes through authorised wholesalers, and Punting Form
+sells a form-and-results API.
+
 ## Where to bet, if you do
 
 | | Tote | Fixed odds | Betfair |
@@ -220,6 +298,36 @@ venue at scale: commission on *net winnings* is far cheaper than takeout on
 computes EV net of commission by default.
 
 ---
+
+## What it actually does, measured
+
+After the audit fixes, the walk-forward backtest was re-run on three
+independent simulated seasons (~4,400 evaluated races each). This is the
+honest baseline, and you should read it before forming any expectations.
+
+| seed | market log-loss | model log-loss | vs market | market top-1 | model top-1 | α (model weight) | β (market weight) | bets placed |
+|---|---|---|---|---|---|---|---|---|
+| 11 | 1.8237 | 1.8233 | **+0.02%** | 33.9% | 34.0% | 0.021 | 0.968 | **0** |
+| 12 | 1.8117 | 1.8120 | **−0.02%** | 34.8% | 34.8% | 0.047 | 0.944 | **0** |
+| 13 | 1.7846 | 1.7849 | **−0.02%** | 35.6% | 35.5% | 0.013 | 0.985 | **0** |
+
+Read that carefully. Against a properly specified, efficient market the
+model is **level with it** — it matches the market's accuracy almost
+exactly, the blend learns to put essentially all the weight on the market
+(β ≈ 0.96, α ≈ 0.03), and it places **zero bets**, because nothing clears
+a 15–30% overround.
+
+That is the system working correctly. A tool that refuses to bet when it
+has no edge is worth more than one that finds an edge in every race.
+
+It is also a correction to what this README said earlier in development.
+Before the audit, the same backtest reported yields of +13% to +30%. Every
+bit of that came from two bugs: the simulator was leaking 92% of its hidden
+ground truth through the weight column, and its market was mis-specified in
+a way that left an exploitable curve across price bands. Fix both and the
+edge evaporates. **This is exactly how a real betting model fools its
+author**, and it is why the honest answer to "what win rate can I expect"
+is the one at the top of this file.
 
 ## What independent review found
 
