@@ -1,0 +1,5 @@
+scenario,expected,market_skill,book,log_loss_model,log_loss_market,beats_market,top1,fav_strike,n_bets,roi,p_value,leakage,seconds
+"Efficient market, bookmaker book (116%)",no edge,0.92,1.16,1.918,1.9184,True,32.2%,32.2%,89,+13.5%,0.2962,none,183
+"Efficient market, exchange book (102%)",little or no edge,0.92,1.02,1.9188,1.919,True,32.0%,32.2%,2948,+1.2%,0.4053,none,191
+"Weak market, bookmaker book (116%)",real edge,0.7,1.16,1.9465,1.9848,True,31.1%,29.1%,5413,+15.9%,0.0007,none,998
+"Weak market, exchange book (102%)",large edge,0.7,1.02,1.9426,1.9892,True,30.8%,29.1%,9093,+20.6%,0.0,none,1237
