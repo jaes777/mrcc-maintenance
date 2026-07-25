@@ -276,6 +276,47 @@ def cmd_train(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_analyse(args: argparse.Namespace) -> int:
+    from .analyse import analyse_race
+    from .betting.staking import StakingPolicy
+    from .data.store import RaceStore
+    from .features import RollingContext
+
+    if not Path(args.model).exists():
+        print(f"No model at {args.model}. Run `ausform train` first.")
+        return 1
+    payload = pickle.loads(Path(args.model).read_bytes())
+    model = payload["model"]
+    context = payload.get("context") or RollingContext()
+
+    with RaceStore(args.db) as store:
+        races = list(store.iter_races())
+
+    if args.race_id:
+        matches = [r for r in races if r.race_id == args.race_id]
+    else:
+        target_date = (_dt.date.fromisoformat(args.date) if args.date
+                       else max((r.date for r in races), default=None))
+        matches = [r for r in races if r.date == target_date]
+        if args.track:
+            matches = [r for r in matches
+                       if args.track.lower() in r.track.name.lower()]
+        if args.race_number:
+            matches = [r for r in matches if r.race_number == args.race_number]
+
+    if not matches:
+        print("No matching race found.")
+        return 1
+
+    policy = StakingPolicy(kelly_fraction=args.kelly, min_edge=args.min_edge)
+    for race in matches[:args.limit]:
+        analysis = analyse_race(race, model, context, bankroll=args.bankroll,
+                                policy=policy)
+        _print_analysis(analysis)
+        print()
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     try:
         import uvicorn
@@ -334,6 +375,20 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--out", default="model.pkl")
     train.add_argument("--l2", type=float, default=1.0)
     train.set_defaults(func=cmd_train)
+
+    analyse = sub.add_parser("analyse", help="assess a race and suggest bets")
+    analyse.add_argument("--db", default="ausform.db")
+    analyse.add_argument("--model", default="model.pkl")
+    analyse.add_argument("--race-id", help="analyse one specific race")
+    analyse.add_argument("--date", help="YYYY-MM-DD (default: latest in the store)")
+    analyse.add_argument("--track", help="match on track name, e.g. Flemington")
+    analyse.add_argument("--race-number", type=int)
+    analyse.add_argument("--bankroll", type=float, default=1000.0)
+    analyse.add_argument("--kelly", type=float, default=0.25,
+                         help="Kelly fraction; 0.25 is the recommended default")
+    analyse.add_argument("--min-edge", type=float, default=0.05)
+    analyse.add_argument("--limit", type=int, default=10)
+    analyse.set_defaults(func=cmd_analyse)
 
     serve = sub.add_parser("serve", help="start the web dashboard")
     serve.add_argument("--db", default="ausform.db")
