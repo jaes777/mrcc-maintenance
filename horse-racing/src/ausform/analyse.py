@@ -34,6 +34,7 @@ from .betting.exotics import (
 from .betting.odds import Method, betfair_commission, devig
 from .betting.staking import Stake, StakingPolicy, expected_value, size_bets
 from .features import RollingContext, build_features
+from .model import TwoStageModel
 from .types import Race, Runner
 
 
@@ -187,10 +188,15 @@ def analyse_race(
             "fundamental model alone, which is materially less reliable -- "
             "the market is the strongest single predictor there is.")
 
-    try:
+    # Dispatch on the model's actual capability rather than catching
+    # TypeError: a bare except here would swallow a genuine TypeError raised
+    # inside a two-stage model and silently fall back to ignoring the
+    # market, which is the single most damaging thing this code can do
+    # quietly.
+    if isinstance(model, TwoStageModel):
         probabilities = model.predict_proba(
             feature_set.matrix, win_odds if has_market else None)
-    except TypeError:
+    else:
         probabilities = model.predict_proba(feature_set.matrix)
     probabilities = np.asarray(probabilities, dtype=float)
 

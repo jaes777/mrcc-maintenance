@@ -136,15 +136,25 @@ def _print_report(report: dict) -> None:
         print(f"\n  Blend weights    : model {blend['mean_alpha_model_weight']:.3f}, "
               f"market {blend['mean_beta_market_weight']:.3f}")
 
+    if report.get("broken_predictions"):
+        print(f"\n  WARNING: {report['broken_predictions']:,} predictions were "
+              f"numerically broken (non-finite or not summing to 1).")
+
     print("\n  FLAT-STAKE YIELD")
     for row in report["yield"]:
-        flag = "significant" if row["statistically_significant"] else "NOT significant"
+        low, high = row.get("yield_ci_95", (float("nan"), float("nan")))
+        flag = "significant" if row["statistically_significant"] else "not significant"
         print(f"    edge > {row['edge_threshold']:>4.0%} : "
               f"{row['bets']:>6,} bets, strike {row['strike_rate']:>5.1%}, "
               f"yield {row['yield_pct']:>+7.1%}  [{flag}]")
-        if not row["statistically_significant"] and row.get("bets_needed_for_significance"):
-            print(f"{'':18}would need ~{row['bets_needed_for_significance']:,} "
-                  f"bets to prove")
+        if low == low:  # not NaN
+            print(f"{'':18}95% interval {low:+.1%} to {high:+.1%}; "
+                  f"~{row['bets_needed_to_detect_3pct_edge']:,} bets would be "
+                  f"needed to detect a 3% edge")
+    print("\n    Five nested thresholds are tested on overlapping bets with no")
+    print("    multiplicity correction, so one 'significant' row among them is")
+    print("    unremarkable. Yields on simulated data are not predictive of real")
+    print("    racing -- see the README.")
 
 
 def _print_analysis(analysis) -> None:

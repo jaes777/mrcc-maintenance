@@ -98,7 +98,18 @@ class WalkForwardBacktest:
         races: Sequence[Race],
         progress: Optional[Callable[[str], None]] = None,
     ) -> BacktestResult:
-        ordered = sorted(races, key=lambda r: (r.date, r.race_id))
+        # Sort by scheduled start time where it is known, not just by date.
+        # Sorting on date alone leaves same-day races in arbitrary order, so
+        # roughly half of them would have their features built after a
+        # later-running race had already been folded into the context. The
+        # measured effect is tiny, but it quietly breaks the point-in-time
+        # guarantee the whole design rests on.
+        ordered = sorted(
+            races,
+            key=lambda r: (r.date,
+                           r.start_time.time() if r.start_time else _dt.time.min,
+                           r.race_number,
+                           r.race_id))
         if not ordered:
             raise ValueError("No races supplied.")
 
@@ -126,6 +137,8 @@ class WalkForwardBacktest:
         predictions: list[RacePrediction] = []
         blends: list[tuple[float, float]] = []
         windows = 0
+        failed_windows = 0
+        unfitted_blends = 0
 
         test_start = start_date + _dt.timedelta(days=config.train_days)
         while test_start <= end_date:
@@ -152,11 +165,18 @@ class WalkForwardBacktest:
             model = self._fit(observations, [ordered[i] for i in train_idx],
                               feature_sets[train_idx[0]].names)
             if model is None:
+                # A window whose fit failed is not the same as a window that
+                # never ran. Record it, or a run where most windows blew up
+                # is indistinguishable from a clean one.
+                failed_windows += 1
+                notes.append(f"Model fit failed for the window starting {test_start}.")
                 test_start = test_end
                 continue
 
             if isinstance(model, TwoStageModel):
                 blends.append((model.blend.alpha, model.blend.beta))
+                if not model.blend.fitted:
+                    unfitted_blends += 1
 
             for i in test_idx:
                 prediction = self._predict(model, feature_sets[i], ordered[i])
@@ -173,6 +193,16 @@ class WalkForwardBacktest:
             notes.append(
                 "No walk-forward window had enough training data. Either supply "
                 "more history or lower train_days / min_train_races.")
+        if failed_windows:
+            notes.append(
+                f"{failed_windows} of {windows + failed_windows} windows failed to "
+                f"fit and were skipped; the reported metrics cover only the rest.")
+        if unfitted_blends:
+            notes.append(
+                f"{unfitted_blends} of {windows} windows had too little data to fit "
+                f"the market blend and fell back to default weights "
+                f"(alpha=0.25, beta=0.90). Those blend numbers were never "
+                f"estimated from data -- do not read anything into them.")
 
         return BacktestResult(predictions=predictions, windows=windows,
                               config=config, fitted_blends=blends, notes=notes)

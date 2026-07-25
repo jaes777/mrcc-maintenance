@@ -38,12 +38,19 @@ estimate them from your own results, and you should use it.
 from __future__ import annotations
 
 import itertools
+import logging
 import math
 from dataclasses import dataclass
 from typing import Iterable, Optional, Sequence
 
 import numpy as np
 from scipy.optimize import minimize
+
+log = logging.getLogger(__name__)
+
+# Below this, the fit is noise. Repeat-sampling standard deviation on
+# lambda_2nd is ~0.13 at 100 races and ~0.03 at 2000.
+_MIN_FIT_RACES = 2000
 
 # Starting values from the literature. Fit your own before betting exotics.
 DEFAULT_LAMBDA_2ND = 0.85
@@ -353,7 +360,12 @@ def fit_discount_exponents(
     """
     usable = [(np.asarray(p, dtype=float), list(order)[:3])
               for p, order in races if len(order) >= 3 and len(p) >= 4]
-    if len(usable) < 100:
+    if len(usable) < _MIN_FIT_RACES:
+        log.warning(
+            "Only %d usable races to fit the discount exponents (need %d); "
+            "keeping the defaults %s. At 100 races the fitted lambda has a "
+            "standard deviation of about 0.13, which is wider than the whole "
+            "effect being estimated.", len(usable), _MIN_FIT_RACES, initial)
         return initial
 
     def negative_log_likelihood(params: np.ndarray) -> float:

@@ -91,8 +91,11 @@ def _power(raw: np.ndarray) -> np.ndarray:
 
     try:
         # sum(q^k) decreases monotonically in k for q < 1, so the root is
-        # bracketed once the upper bound drives the sum below 1.
-        lower, upper = 0.5, 1.0
+        # bracketed once the upper bound drives the sum below 1. The lower
+        # bound must be able to go well below 1: a heavily underround book
+        # needs k < 1, and an earlier hard floor of 0.5 silently rejected
+        # those and fell back to proportional.
+        lower, upper = 1e-6, 1.0
         for _ in range(60):
             if excess(upper) < 0:
                 break
@@ -152,6 +155,26 @@ _METHODS = {
     "power": _power,
     "shin": _shin,
 }
+
+
+def devig_with_method(odds: Sequence[Optional[float]],
+                      method: Method = "shin") -> tuple[np.ndarray, Method]:
+    """Devig, and report the method actually used.
+
+    Shin and power both fall back to proportional when the solver cannot
+    bracket a root, when the book is under 100%, or when fewer than two
+    prices are present. That fallback is reasonable but it silently changes
+    the market baseline that every model figure is measured against, so
+    callers that care can ask which method really ran.
+    """
+    probs = devig(odds, method)
+    if method == "proportional":
+        return probs, "proportional"
+    reference = devig(odds, "proportional")
+    finite = np.isfinite(probs) & np.isfinite(reference)
+    if finite.any() and np.allclose(probs[finite], reference[finite], atol=1e-12):
+        return probs, "proportional"
+    return probs, method
 
 
 def devig(odds: Sequence[Optional[float]], method: Method = "shin") -> np.ndarray:

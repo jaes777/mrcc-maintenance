@@ -82,6 +82,12 @@ class _TimeStats:
         return math.sqrt(self.m2 / (self.n - 1))
 
 
+# Returned by every read for an unseen jockey/trainer/sire/barrier. Shared
+# and never mutated -- reads must not create dictionary entries, or merely
+# querying the context would grow it and corrupt summary().
+_EMPTY = _Tally()
+
+
 class RollingContext:
     """Accumulates everything the feature builder needs to know about the past."""
 
@@ -123,31 +129,35 @@ class RollingContext:
     def jockey_win_rate(self, name: Optional[str]) -> float:
         if not name:
             return self.base_win_rate
-        return self.jockeys[name].rate("win", self.base_win_rate, self.prior_weight)
+        return self.jockeys.get(name, _EMPTY).rate(
+            "win", self.base_win_rate, self.prior_weight)
 
     def jockey_place_rate(self, name: Optional[str]) -> float:
         if not name:
             return self.base_place_rate
-        return self.jockeys[name].rate("place", self.base_place_rate, self.prior_weight)
+        return self.jockeys.get(name, _EMPTY).rate(
+            "place", self.base_place_rate, self.prior_weight)
 
     def jockey_starts(self, name: Optional[str]) -> int:
-        return self.jockeys[name].starts if name else 0
+        return self.jockeys.get(name, _EMPTY).starts if name else 0
 
     def trainer_win_rate(self, name: Optional[str]) -> float:
         if not name:
             return self.base_win_rate
-        return self.trainers[name].rate("win", self.base_win_rate, self.prior_weight)
+        return self.trainers.get(name, _EMPTY).rate(
+            "win", self.base_win_rate, self.prior_weight)
 
     def trainer_place_rate(self, name: Optional[str]) -> float:
         if not name:
             return self.base_place_rate
-        return self.trainers[name].rate("place", self.base_place_rate, self.prior_weight)
+        return self.trainers.get(name, _EMPTY).rate(
+            "place", self.base_place_rate, self.prior_weight)
 
     def combo_win_rate(self, jockey: Optional[str], trainer: Optional[str]) -> float:
         if not jockey or not trainer:
             return self.base_win_rate
         # Shrink harder: jockey/trainer pairings have small samples.
-        return self.combos[(jockey, trainer)].rate(
+        return self.combos.get((jockey, trainer), _EMPTY).rate(
             "win", self.base_win_rate, self.prior_weight * 0.5)
 
     def sire_wet_win_rate(self, sire: Optional[str]) -> float:
@@ -158,7 +168,7 @@ class RollingContext:
         """
         if not sire:
             return self.base_win_rate
-        return self.sires_wet[sire].rate(
+        return self.sires_wet.get(sire, _EMPTY).rate(
             "win", self.base_win_rate, self.prior_weight * 0.7)
 
     def barrier_win_rate(self, track_code: str, distance_m: int, barrier: Optional[int]
@@ -170,7 +180,8 @@ class RollingContext:
         if barrier is None:
             return self.base_win_rate
         key = (track_code, self._distance_bucket(distance_m), min(barrier, 20))
-        return self.barriers[key].rate("win", self.base_win_rate, self.prior_weight)
+        return self.barriers.get(key, _EMPTY).rate(
+            "win", self.base_win_rate, self.prior_weight)
 
     # Below this many observed winning times, a bucket's mean and standard
     # deviation are too unstable to standardise against: a spuriously small

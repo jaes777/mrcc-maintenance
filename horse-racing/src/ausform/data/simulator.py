@@ -28,6 +28,9 @@ from __future__ import annotations
 import datetime as _dt
 import math
 import random
+
+import numpy as np
+from scipy.special import ndtr
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -142,11 +145,12 @@ class SeasonSimulator:
         n_horses: int = 9000,
         n_jockeys: int = 60,
         n_trainers: int = 40,
-        market_efficiency: float = 0.82,
+        market_efficiency: float = 0.93,
         market_overround: float = 1.18,
         noise_scale: float = 1.80,
         private_info_sd: float = 0.55,
         market_sees_private: float = 0.85,
+        favourite_longshot_exponent: float = 0.86,
     ):
         """
         n_horses: population size. Should be large relative to the number of
@@ -156,8 +160,22 @@ class SeasonSimulator:
             makes every horse a 50-start veteran and inflates form quality.
         market_efficiency: how much of the true signal the simulated market
             captures (1.0 = perfectly efficient and unbeatable, 0 = random).
-            Real win markets are highly but not perfectly efficient; 0.82
-            leaves a modest exploitable edge, which is the realistic case.
+            Real win markets are highly but not perfectly efficient.
+        favourite_longshot_exponent: strength of the favourite-longshot
+            bias, applied as p ** exponent then renormalised. Below 1 it
+            lifts longshots' implied chances above the truth, which is what
+            punters actually do.
+
+            These two are calibrated together, because they push blind
+            flat-bet return in opposite directions and only their net
+            effect is observable. At the defaults, betting every runner
+            blind returns about -29% in the 2-5% probability band rising to
+            about -11% at 30-60%, which is the shape and magnitude real
+            Australian racing shows. An earlier setting (0.82 / 0.91) had
+            market noise swamping the bias and produced a gradient running
+            the *wrong way* -- longshots returning better than favourites
+            -- which would have quietly rewarded a model for backing
+            outsiders.
         market_overround: total book percentage. Australian tote win pools
             and fixed-odds books typically run 1.15-1.25.
         noise_scale: multiplier on run-to-run variability. This is the dial
@@ -187,11 +205,14 @@ class SeasonSimulator:
             hard to beat.
         """
         self.rng = random.Random(seed)
+        # Separate numpy stream for the vectorised Monte Carlo pricing.
+        self._nprng = np.random.default_rng(seed)
         self.market_efficiency = market_efficiency
         self.market_overround = market_overround
         self.noise_scale = noise_scale
         self.private_info_sd = private_info_sd
         self.market_sees_private = market_sees_private
+        self.fl_exponent = favourite_longshot_exponent
         self.tracks: list[Track] = [t for t in all_tracks() if t.latitude != 0.0]
 
         self.horses = [self._make_horse(i) for i in range(n_horses)]
@@ -382,49 +403,81 @@ class SeasonSimulator:
             + self.rng.gauss(0, horse.consistency)
         )
 
-    def _simulate_market(self, strengths: list[float], noise_sd: float) -> list[float]:
-        """Produce decimal odds from true strengths.
+    def _true_win_probabilities(self, strengths: list[float],
+                                sds: list[float]) -> np.ndarray:
+        """The genuine win probabilities implied by the race process.
 
-        The market sees a noisy version of the truth (controlled by
-        `market_efficiency`), then a favourite-longshot bias is applied --
-        the well documented tendency for punters to overbet outsiders and
-        underbet short-priced horses -- and finally an overround is added.
+        The race is decided by performance_i = strength_i + N(0, sd_i),
+        with the winner being the argmax. The probability that runner i
+        wins is therefore
 
-        `noise_sd` is the standard deviation of run-to-run variation. It
-        matters because a strength advantage only converts into a win
-        probability relative to how noisy performance is. Converting via a
-        softmax implicitly assumes Gumbel noise of scale beta, which
-        corresponds to a normal sd of beta*pi/sqrt(6), so we divide through
-        by that factor to keep the implied probabilities honest.
+            P(i) = integral phi_i(x) * product_{j != i} Phi_j(x) dx
+
+        which is evaluated here by numerical quadrature.
+
+        Two earlier attempts got this wrong in instructive ways.
+
+        The first approximated it with a softmax at a single field-average
+        noise level, but the race uses a *per-horse* sd. That mismatch is a
+        systematic mispricing that varies with price, and it showed up as a
+        20-point spread in blind flat-bet return across odds bands, where a
+        correctly formed book must be flat.
+
+        The second used Monte Carlo. That is unbiased but *noisy*, and
+        noise in a price is not harmless: a runner lands in a low-priced
+        band partly because its estimate happened to come out low, so
+        conditional on the band the true chance is higher than the price
+        implies. That errors-in-variables effect alone put a 5-point tilt
+        into the longshot end of a market that was otherwise perfect.
+
+        Quadrature has neither problem: it is deterministic and accurate to
+        about 1e-9, so a control market with no deliberate bias comes out
+        genuinely flat.
         """
-        gumbel_beta = max(1e-6, noise_sd * math.sqrt(6) / math.pi)
-        scaled = [s / gumbel_beta for s in strengths]
+        mu = np.asarray(strengths, dtype=float)
+        sd = np.maximum(1e-9, np.asarray(sds, dtype=float))
 
-        # The market observes the truth with noise. Note it is *unbiased*
-        # noise, not a shrunk signal: multiplying strengths by an
-        # efficiency factor would flatten every price in a systematic,
-        # trivially exploitable way and would make the model look far
-        # cleverer than it is.
+        lo = float((mu - 9.0 * sd).min())
+        hi = float((mu + 9.0 * sd).max())
+        grid = np.linspace(lo, hi, 2048)
+
+        z = (grid[:, None] - mu[None, :]) / sd[None, :]
+        log_cdf = np.log(np.clip(ndtr(z), 1e-300, None))
+        pdf = np.exp(-0.5 * z * z) / (sd[None, :] * math.sqrt(2.0 * math.pi))
+
+        # product over j != i, computed in logs for stability
+        others = np.exp(log_cdf.sum(axis=1)[:, None] - log_cdf)
+        probs = np.trapezoid(pdf * others, grid, axis=0)
+
+        probs = np.clip(probs, 1e-12, None)
+        return probs / probs.sum()
+
+    def _simulate_market(self, true_probs: np.ndarray) -> list[float]:
+        """Produce decimal odds from the true win probabilities.
+
+        The market observes the truth with *unbiased* noise in log-odds
+        space, controlled by `market_efficiency`. Then a favourite-longshot
+        bias is applied -- the well documented tendency for punters to
+        overbet outsiders -- and finally an overround.
+
+        The noise is deliberately unbiased: shrinking the signal by an
+        efficiency factor would flatten every price in a systematic,
+        trivially exploitable direction and make the model look far
+        cleverer than it is.
+        """
+        log_p = np.log(np.clip(true_probs, 1e-12, None))
         sigma = math.sqrt(max(0.0, 1.0 / max(0.05, self.market_efficiency) - 1.0))
-        noisy = [s + self.rng.gauss(0, sigma) for s in scaled]
+        noisy = log_p + self._nprng.standard_normal(len(log_p)) * sigma
 
-        peak = max(noisy) if noisy else 0.0
-        exp_vals = [math.exp(v - peak) for v in noisy]
-        total = sum(exp_vals)
-        probs = [v / total for v in exp_vals]
+        exp_vals = np.exp(noisy - noisy.max())
+        probs = exp_vals / exp_vals.sum()
 
-        # Favourite-longshot bias: punters overbet outsiders, so their
-        # implied chances sit above the truth. Raising to a power < 1 and
-        # renormalising reproduces that.
-        biased = [p ** 0.91 for p in probs]
-        bias_total = sum(biased)
-        biased = [p / bias_total for p in biased]
+        biased = probs ** self.fl_exponent
+        biased = biased / biased.sum()
 
-        # Apply overround and convert to decimal odds, bounded to what a
-        # real book would actually quote.
         return [
             min(_MAX_ODDS,
-                max(_MIN_ODDS, round(1.0 / (p * self.market_overround), 2)))
+                max(_MIN_ODDS, round(float(1.0 / (p * self.market_overround)), 2)))
             for p in biased
         ]
 
@@ -491,9 +544,7 @@ class SeasonSimulator:
             jockey = rng.choice(self.jockeys)
             trainer = rng.choice(self.trainers)
             barrier = barriers[i]
-            # Handicap weights: better horses carry more, as they should.
-            weight_kg = round(54.0 + 2.4 * max(-1.5, min(2.5, horse.ability))
-                              + rng.uniform(-1.0, 1.0), 1)
+            weight_kg = self._handicap_weight(horse, rng)
 
             expected = (
                 horse.ability
@@ -518,8 +569,9 @@ class SeasonSimulator:
             )
             pairs.append((horse, jockey, trainer, barrier, weight_kg))
 
-        mean_noise_sd = sum(h.consistency for h in field_horses) / actual_size * self.noise_scale
-        odds = self._simulate_market(strengths, mean_noise_sd)
+        per_horse_sd = [h.consistency * self.noise_scale for h in field_horses]
+        true_probs = self._true_win_probabilities(strengths, per_horse_sd)
+        odds = self._simulate_market(true_probs)
         place_odds = self._simulate_place_market(odds, actual_size)
 
         # Higher performance finishes in front.
@@ -582,6 +634,40 @@ class SeasonSimulator:
                 horse.retired = True
 
         return race
+
+    @staticmethod
+    def _handicap_weight(horse: SimHorse, rng: random.Random) -> float:
+        """Weight allotted by the handicapper today.
+
+        This deliberately does NOT read `horse.ability`. An earlier version
+        did, and the result was a feature correlating 0.96 with the latent
+        ability term -- a single column handing the model 92% of the hidden
+        truth, available even to a first-starter with no form at all. That
+        made "can the model recover the signal?" a vacuous question and
+        rendered the fitted blend weights uninterpretable.
+
+        Real handicappers work from the public record: what the horse has
+        beaten, and what it carried when it did. So the weight here is
+        built from *observed past finishing positions* -- lagged, noisy,
+        and unavailable before a horse has raced -- exactly like the real
+        thing. It remains correlated with ability, because good horses do
+        win and do get weighted, but only through the form the model can
+        also see.
+        """
+        recent = [r for r in horse.history[:6] if r.finish_position and r.field_size]
+        if not recent:
+            # No public record yet: near the bottom of the handicap.
+            return round(54.0 + rng.uniform(-0.5, 1.0), 1)
+
+        # Mean finishing percentile, 1.0 for winning, 0.0 for running last.
+        scores = [1.0 - (r.finish_position - 1) / max(1, r.field_size - 1)
+                  for r in recent]
+        rating = sum(scores) / len(scores)
+
+        # Handicappers also weight on class: winning better races costs more.
+        class_bump = 0.35 * min(6, horse.current_class)
+
+        return round(53.0 + 4.0 * rating + class_bump + rng.gauss(0, 1.1), 1)
 
     def _simulate_place_market(self, win_odds: list[float],
                                field_size: int) -> list[Optional[float]]:

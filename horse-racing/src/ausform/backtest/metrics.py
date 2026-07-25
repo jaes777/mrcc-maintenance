@@ -64,6 +64,15 @@ def log_loss(predictions: Sequence[RacePrediction],
 
     This is a *race-level multiclass* log loss: one term per race, not one
     per runner. Lower is better.
+
+    A probability of exactly zero on the actual winner is NOT skipped. It
+    is the single worst thing a model can do -- it declared the outcome
+    impossible -- and dropping those races quietly deletes the model's
+    catastrophic failures from its own scorecard. They are floored at
+    1e-15 and counted, which is brutal, and correct. (Zero is reachable in
+    practice: the softmax underflows when the strength gap is large.)
+    Only genuinely non-finite values are skipped, and those are counted
+    separately so a silently broken run cannot look like a clean one.
     """
     total, count = 0.0, 0
     for prediction in predictions:
@@ -74,11 +83,28 @@ def log_loss(predictions: Sequence[RacePrediction],
         if probs is None or prediction.winner_index >= len(probs):
             continue
         p = probs[prediction.winner_index]
-        if not np.isfinite(p) or p <= 0:
+        if not np.isfinite(p):
             continue
-        total += -math.log(max(p, 1e-15))
+        total += -math.log(max(float(p), 1e-15))
         count += 1
     return total / count if count else float("nan")
+
+
+def count_broken(predictions: Sequence[RacePrediction],
+                 use_market: bool = False) -> int:
+    """Races whose probability vector is unusable (non-finite or not
+    summing to 1). Reported so a broken run is visibly broken."""
+    broken = 0
+    for prediction in predictions:
+        if prediction.winner_index is None:
+            continue
+        probs = (prediction.market_probabilities if use_market
+                 else prediction.probabilities)
+        if probs is None:
+            continue
+        if not np.all(np.isfinite(probs)) or abs(float(np.sum(probs)) - 1.0) > 1e-6:
+            broken += 1
+    return broken
 
 
 def brier_score(predictions: Sequence[RacePrediction],
@@ -96,11 +122,15 @@ def brier_score(predictions: Sequence[RacePrediction],
                  else prediction.probabilities)
         if probs is None:
             continue
+        # A non-finite vector is a broken prediction, not a bad one.
+        # Substituting zeros would score it 1.0 -- merely "wrong" -- and
+        # let a numerically broken model masquerade as a mediocre one.
+        if not np.all(np.isfinite(probs)):
+            continue
         outcome = np.zeros(len(probs))
         if prediction.winner_index < len(probs):
             outcome[prediction.winner_index] = 1.0
-        clean = np.where(np.isfinite(probs), probs, 0.0)
-        total += float(np.sum((clean - outcome) ** 2))
+        total += float(np.sum((np.asarray(probs) - outcome) ** 2))
         count += 1
     return total / count if count else float("nan")
 
@@ -256,25 +286,64 @@ class YieldResult:
             return 0.0
         return float(np.mean(self.profits) * math.sqrt(self.bets) / sd)
 
+    def bootstrap_interval(self, confidence: float = 0.95,
+                           n_resamples: int = 2000,
+                           seed: int = 0) -> tuple[float, float]:
+        """Percentile bootstrap interval for the yield.
+
+        A t-test is a poor fit here. Per-bet profit is about -1 some 85% of
+        the time with an occasional +20, so the distribution is violently
+        skewed and the normal approximation flatters small samples. A
+        bootstrap makes no distributional assumption.
+        """
+        if self.bets < 20 or not self.profits:
+            return (float("nan"), float("nan"))
+        rng = np.random.default_rng(seed)
+        sample = np.asarray(self.profits, dtype=float)
+        draws = rng.choice(sample, size=(n_resamples, len(sample)), replace=True)
+        means = draws.mean(axis=1)
+        tail = (1.0 - confidence) / 2.0
+        return (float(np.quantile(means, tail)),
+                float(np.quantile(means, 1.0 - tail)))
+
     @property
     def is_significant(self) -> bool:
-        """Whether the yield is distinguishable from zero at roughly 95%.
+        """Whether the yield is distinguishable from zero.
 
-        A False here means you have not proved anything -- not that the
-        strategy is bad, but that this sample cannot tell the difference
-        between a real edge and luck. Most backtests never reach True.
+        Uses a bootstrap interval that must exclude zero, and demands a
+        minimum sample. Read a False as "this sample cannot tell a real
+        edge from luck" -- not as "the strategy is bad". Most honest
+        backtests never reach True.
+
+        IMPORTANT: this is evaluated at several nested edge thresholds on
+        overlapping bets, with no multiplicity correction. Testing five
+        thresholds means roughly a 1-in-4 chance that at least one shows
+        "significant" on pure noise. Treat a single significant row among
+        several as unremarkable, and never as a green light.
         """
-        return self.bets >= 100 and abs(self.t_statistic) > 2.0
+        if self.bets < 200:
+            return False
+        low, high = self.bootstrap_interval()
+        if not (np.isfinite(low) and np.isfinite(high)):
+            return False
+        return low > 0.0 or high < 0.0
 
-    @property
-    def bets_needed(self) -> int:
-        """Bets required for this yield to become significant, at this
-        variance. Usually a sobering number."""
+    def bets_needed(self, assumed_yield: float = 0.03) -> int:
+        """Bets required to detect an edge of `assumed_yield`, at the
+        payout variance actually observed.
+
+        The assumed yield is deliberately a *parameter*, not the realised
+        one. Deriving the required sample size from the sample's own point
+        estimate is circular -- it reduces algebraically to 4n/t^2, which
+        is smaller than n exactly when the sample got lucky, so it would
+        always tell you that you already have enough evidence at the
+        precise moment you do not. The default of 3% is a plausible real
+        edge on an exchange; pass your own if you prefer.
+        """
         sd = self.profit_sd
-        mean = self.yield_pct
-        if not np.isfinite(sd) or sd <= 0 or mean == 0:
+        if not np.isfinite(sd) or sd <= 0 or assumed_yield <= 0:
             return 0
-        return int(round((2.0 * sd / abs(mean)) ** 2))
+        return int(round((2.0 * sd / assumed_yield) ** 2))
 
 
 def yield_by_threshold(
@@ -424,6 +493,7 @@ def full_report(predictions: Sequence[RacePrediction],
         "baselines": {
             "uniform_log_loss": uniform_baseline_log_loss(predictions),
         },
+        "broken_predictions": count_broken(predictions),
         "yield": [
             {
                 "edge_threshold": r.threshold,
@@ -432,9 +502,9 @@ def full_report(predictions: Sequence[RacePrediction],
                 "yield_pct": r.yield_pct,
                 "profit": r.profit,
                 "profit_sd": r.profit_sd,
-                "t_statistic": r.t_statistic,
+                "yield_ci_95": r.bootstrap_interval(),
                 "statistically_significant": r.is_significant,
-                "bets_needed_for_significance": r.bets_needed,
+                "bets_needed_to_detect_3pct_edge": r.bets_needed(0.03),
             }
             for r in yield_by_threshold(predictions, commission=commission)
         ],

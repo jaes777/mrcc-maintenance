@@ -69,6 +69,10 @@ log = logging.getLogger(__name__)
 
 _FLOOR = 1e-6  # keeps logs finite for hopeless outsiders
 
+# Below this many races the two blend weights are not identifiable in any
+# useful sense, so we keep the defaults and flag them as unfitted.
+_MIN_BLEND_RACES = 200
+
 
 @dataclass
 class BlendedRace:
@@ -95,10 +99,14 @@ class MarketBlend:
                   and r.fundamental.size == r.market.size
                   and np.all(np.isfinite(r.market))
                   and 0 <= r.winner_index < r.fundamental.size]
-        if len(usable) < 30:
+        if len(usable) < _MIN_BLEND_RACES:
             log.warning(
-                "Only %d races available to fit the market blend; keeping "
-                "defaults alpha=%.2f beta=%.2f", len(usable), self.alpha, self.beta)
+                "Only %d usable races to fit the market blend (need %d); keeping "
+                "unfitted defaults alpha=%.2f beta=%.2f. These are guesses, not "
+                "estimates -- `fitted` stays False so callers can say so.",
+                len(usable), _MIN_BLEND_RACES, self.alpha, self.beta)
+            self.n_races_fitted = 0
+            self.fitted = False
             return self
 
         log_f = [np.log(np.clip(r.fundamental, _FLOOR, 1.0)) for r in usable]
@@ -125,6 +133,13 @@ class MarketBlend:
                           jac=True, method="L-BFGS-B",
                           bounds=[(0.0, 5.0), (0.0, 5.0)],
                           options={"maxiter": 300})
+
+        if not result.success:
+            log.warning("Market blend did not converge (%s); keeping defaults.",
+                        result.message)
+            self.fitted = False
+            self.n_races_fitted = 0
+            return self
 
         self.alpha, self.beta = float(result.x[0]), float(result.x[1])
         self.fitted = True

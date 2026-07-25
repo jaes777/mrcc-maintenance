@@ -180,10 +180,21 @@ class Runner:
     result_margin_l: Optional[float] = None
 
     def runs_before(self, cutoff: _dt.date) -> list[PastRun]:
-        """Point-in-time form. Used everywhere in feature building to make
-        leakage structurally difficult: you cannot see a run that had not
-        happened when the race was framed."""
-        return [r for r in self.history if r.date < cutoff and not r.scratched]
+        """Point-in-time form, most recent first.
+
+        Used everywhere in feature building to make leakage structurally
+        difficult: you cannot see a run that had not happened when the race
+        was framed.
+
+        The sort is not decorative. Every caller assumes `[0]` is the last
+        start -- days since run, last finishing position, weight change,
+        jockey switch, the most recent three runs. A provider that hands
+        back oldest-first would silently invert all of those with no error
+        anywhere, so the ordering is enforced here rather than trusted.
+        """
+        recent = [r for r in self.history if r.date < cutoff and not r.scratched]
+        recent.sort(key=lambda r: r.date, reverse=True)
+        return recent
 
 
 @dataclass

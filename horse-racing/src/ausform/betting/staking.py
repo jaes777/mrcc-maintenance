@@ -109,6 +109,34 @@ def kelly_multiple_runners(
 
     which is concave, so a constrained optimiser finds the global optimum
     reliably. Runners with no edge naturally receive zero.
+
+    The exact objective, including the term for "none of the runners I
+    backed wins", is
+
+        maximise  sum_i p_i * ln(1 - F + f_i * a_i) + (1 - sum_i p_i) * ln(1 - F)
+
+    where F = sum_j f_j and a_i = 1 + (o_i - 1)(1 - commission) is the gross
+    return per unit staked after commission.
+
+    A NOTE ON WHICH RUNNERS QUALIFY
+    -------------------------------
+    It is tempting to pre-filter to runners with a standalone edge, i.e.
+    p_i * a_i > 1. That is WRONG, and subtly so. The first-order condition
+    for runner i to earn a positive stake is p_i * a_i > W0, where
+    W0 = 1 - F is the bankroll left unbet. Since W0 < 1 whenever you bet
+    anything at all, the true inclusion threshold is strictly *below* 1: a
+    runner with no standalone edge can still belong in the portfolio as a
+    hedge, because the money already committed elsewhere lowers the bar.
+    Filtering at 1 both drops those runners and mis-sizes the survivors,
+    which then absorb the whole allocation.
+
+    So the filter here only removes runners that are unbettable in
+    principle (no price, no probability), and the optimiser decides the
+    rest. `probabilities` is used as supplied and is NOT renormalised: if
+    it sums to less than 1 the remainder is treated as "none of these
+    wins", which is correct for a partial field but a silent under-stake if
+    the caller merely passed unnormalised numbers. Pass a full, normalised
+    field.
     """
     p = np.asarray(probabilities, dtype=float)
     o = np.asarray(odds, dtype=float)
@@ -117,12 +145,18 @@ def kelly_multiple_runners(
         return np.zeros(0)
 
     net = 1.0 + (o - 1.0) * (1.0 - commission)
-    viable = (o > 1.0) & (p > 0) & (p * net > 1.0)
+    viable = (o > 1.0) & (p > 0) & np.isfinite(p) & np.isfinite(o) & (net > 1.0)
     if not viable.any():
         return np.zeros(n)
 
     index = np.where(viable)[0]
     p_v, net_v = p[index], net[index]
+
+    # If nothing has an edge even at a full bankroll, there is no bet.
+    # (With W0 = 1 the condition p*a > W0 is the strictest it can be, so
+    # failing it for every runner means the optimum really is all zeros.)
+    if not np.any(p_v * net_v > 1.0):
+        return np.zeros(n)
 
     def negative_growth(f: np.ndarray) -> float:
         total = f.sum()
@@ -142,7 +176,7 @@ def kelly_multiple_runners(
 
     result = minimize(negative_growth, start, method="SLSQP",
                       bounds=bounds, constraints=constraints,
-                      options={"maxiter": 300, "ftol": 1e-10})
+                      options={"maxiter": 500, "ftol": 1e-12})
 
     stakes = np.zeros(n)
     if result.success:
