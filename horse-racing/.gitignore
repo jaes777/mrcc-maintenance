@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+*.db
+*.pkl
+.pytest_cache/
+report.json
