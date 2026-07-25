@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ausform"
+version = "0.1.0"
+description = "Australian thoroughbred race analysis and bet evaluation"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "requests>=2.31",
+    "scikit-learn>=1.3",
+]
+
+[project.optional-dependencies]
+gbm = ["lightgbm>=4.0"]
+web = ["fastapi>=0.110", "uvicorn>=0.27"]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+ausform = "ausform.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
