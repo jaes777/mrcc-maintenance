@@ -221,16 +221,60 @@ computes EV net of commission by default.
 
 ---
 
+## What independent review found
+
+Two AI reviewers audited this code against numerical references, with
+instructions to assume the author was fooling himself. Worth reading,
+because it tells you which parts to trust.
+
+**Confirmed sound.** The feature pipeline is leak-free under four
+independent probes — including reversing every finishing position in the
+target race, and destroying every result *after* it. Feature values changed
+by exactly 0.0 in both cases. The conditional-logit gradient matches finite
+differences to 1e-8, the exploded Plackett–Luce likelihood matches a
+brute-force reference to 0.0, the blend's closed form matches to 1e-17, and
+the discounted-Harville fast path matches exhaustive enumeration to 1e-14.
+The simulator's private-information term is not recoverable from the full
+feature set (out-of-sample R² = −0.012).
+
+**Found broken, now fixed.** The reviewers found bugs I had not, and
+several flattered the results:
+
+- Joint Kelly used the wrong inclusion condition, mis-sizing 64% of races.
+- Log loss silently *deleted* races where the model called the winner
+  impossible — removing its own worst failures from the scorecard.
+- The "bets needed to prove this edge" figure was algebraically circular:
+  it always said you already had enough evidence precisely when the sample
+  had got lucky.
+- The simulator handed the model 92% of its hidden ground truth through the
+  weight column.
+- The simulated market's favourite-longshot gradient ran *backwards*, which
+  would have quietly rewarded a model for backing outsiders.
+
+Every one of these has a regression test in `tests/test_audit_regressions.py`.
+
+**The finding that matters most to you.** A reviewer re-ran the same
+pipeline across three random seeds. One seed showed "+30% yield,
+statistically significant"; the other two were flat to negative. That is
+the entire lesson of this project in one experiment: **a good-looking
+backtest result is usually luck, and the only defence is to demand far more
+evidence than feels necessary.** The tool now reports bootstrap confidence
+intervals and warns about multiple testing, precisely so that a lucky run
+cannot present itself as an edge.
+
 ## Honest limitations
 
 1. **The simulator is not evidence.** `ausform demo` runs on synthetic
-   races. It is calibrated so the favourite wins ~32% and the market beats
-   uniform guessing, and it includes a "private information" term the model
-   cannot see (representing what stables know and feeds do not). It exists
-   to prove the *machinery* is correct — that features are point-in-time,
-   the likelihood is right, the staking plan does not go broke. Returns
-   measured on it describe the simulator, **not Australian racing**. Its
-   market is still easier to beat than a real one.
+   races. It is calibrated against real Australian figures — the favourite
+   wins ~32–35%, blind flat betting returns about −29% on longshots rising
+   to −11% on short-priced runners, the book runs 118% — and it includes a
+   "private information" term the model cannot see, representing what
+   stables know and data feeds never carry. It exists to prove the
+   *machinery* is correct: that features are point-in-time, the likelihood
+   is right, the staking plan does not go broke. **Returns measured on it
+   describe the simulator, not Australian racing**, and its market is still
+   easier to beat than a real one. Do not use demo yields to set
+   expectations; use them to check nothing is obviously broken.
 2. **The live adapters could not be tested against live endpoints** from
    the sandbox this was built in — outbound access to tab.com.au,
    betfair.com and open-meteo.com was blocked by network policy. The
