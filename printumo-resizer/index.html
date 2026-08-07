@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Printumo Print Resizer</title>
+<style>
+  :root {
+    --teal: #1a7a7a;
+    --teal-light: #e8f5f5;
+    --teal-dark: #145f5f;
+    --orange: #e07b39;
+    --red: #c0392b;
+    --green: #27ae60;
+    --yellow: #f39c12;
+    --grey: #f4f4f4;
+    --dark: #2c3e50;
+    --mid: #7f8c8d;
+    --line: #dfe4e6;
+    --white: #ffffff;
+    --shadow: 0 2px 8px rgba(0,0,0,0.12);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--grey); color: var(--dark); min-height: 100vh; }
+
+  header { background: var(--teal); color: white; padding: 16px 20px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow); }
+  .header-logo { width: 44px; height: 44px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; color: var(--teal); font-size: 1.2rem; flex-shrink: 0; }
+  header h1 { font-size: 1.2rem; font-weight: 700; }
+  header p { font-size: 0.75rem; opacity: 0.85; }
+
+  main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+  .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 0.95rem; color: var(--teal-dark); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .step-num { background: var(--teal); color: white; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
+  .hint { font-size: 0.78rem; color: var(--mid); line-height: 1.45; }
+
+  /* DROP ZONE */
+  #drop { border: 2px dashed var(--teal); border-radius: var(--radius); background: var(--teal-light); padding: 32px 16px; text-align: center; cursor: pointer; transition: background 0.15s; }
+  #drop.over { background: #d4ecec; }
+  #drop strong { display: block; font-size: 1rem; margin-bottom: 4px; color: var(--teal-dark); }
+  #drop span { font-size: 0.8rem; color: var(--mid); }
+
+  /* SOURCE SUMMARY */
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .fact { background: var(--grey); border-radius: 8px; padding: 8px 10px; }
+  .fact .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mid); }
+  .fact .v { font-size: 0.95rem; font-weight: 700; }
+
+  /* PREVIEW + FOCAL POINT */
+  .preview-wrap { position: relative; display: inline-block; max-width: 100%; line-height: 0; border-radius: 8px; overflow: hidden; background: #000; touch-action: none; cursor: crosshair; }
+  .preview-wrap img { max-width: 100%; max-height: 340px; display: block; }
+  #cropBox { position: absolute; border: 2px solid var(--orange); box-shadow: 0 0 0 9999px rgba(0,0,0,0.42); pointer-events: none; }
+  #focal { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border: 2px solid white; border-radius: 50%; background: rgba(224,123,57,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.4); pointer-events: none; }
+
+  /* CONTROLS */
+  .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .field label { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mid); margin-bottom: 4px; font-weight: 600; }
+  .field select, .field input[type="number"], .field input[type="text"], .field input[type="color"] { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 0.9rem; background: var(--white); color: var(--dark); font-family: inherit; }
+  .field input[type="color"] { height: 36px; padding: 2px; }
+  .field input[type="range"] { width: 100%; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; padding-top: 18px; }
+  .check input { width: 18px; height: 18px; }
+
+  /* SIZE TABLE */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+  .btn { border: none; border-radius: 8px; padding: 9px 14px; font-size: 0.82rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-primary { background: var(--teal); color: white; }
+  .btn-primary:hover { background: var(--teal-dark); }
+  .btn-ghost { background: var(--grey); color: var(--dark); }
+  .btn-ghost:hover { background: #e6e9ea; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+
+  .sizes { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .size-group { background: var(--teal-light); color: var(--teal-dark); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 10px; }
+  .size-row { display: grid; grid-template-columns: 26px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 10px; border-top: 1px solid var(--line); cursor: pointer; }
+  .size-row:hover { background: var(--teal-light); }
+  .size-row.previewing { background: #fdf1e7; }
+  .size-row input[type="checkbox"] { width: 18px; height: 18px; }
+  .size-name { font-size: 0.86rem; font-weight: 600; }
+  .size-sub { font-size: 0.72rem; color: var(--mid); }
+  .badge { font-size: 0.68rem; font-weight: 700; padding: 3px 7px; border-radius: 20px; white-space: nowrap; color: white; }
+  .badge.good { background: var(--green); }
+  .badge.ok { background: var(--yellow); }
+  .badge.low { background: var(--red); }
+  .px { font-size: 0.75rem; color: var(--mid); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* PROGRESS + RESULTS */
+  .bar { height: 8px; background: var(--grey); border-radius: 20px; overflow: hidden; margin: 10px 0; }
+  .bar > div { height: 100%; background: var(--teal); width: 0; transition: width 0.2s; }
+  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .result { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .result img { width: 100%; height: 110px; object-fit: contain; background: #eceff0; display: block; }
+  .result .meta { padding: 8px; }
+  .result .meta .t { font-size: 0.8rem; font-weight: 700; }
+  .result .meta .s { font-size: 0.7rem; color: var(--mid); margin-bottom: 6px; }
+  .result a.btn { display: block; text-align: center; text-decoration: none; }
+
+  .warn { background: #fdecea; border-left: 4px solid var(--red); color: #8c2a1f; padding: 10px 12px; border-radius: 6px; font-size: 0.8rem; margin-bottom: 12px; line-height: 1.45; }
+  .note { background: var(--teal-light); border-left: 4px solid var(--teal); padding: 10px 12px; border-radius: 6px; font-size: 0.8rem; line-height: 1.45; }
+  .hidden { display: none; }
+  footer { text-align: center; font-size: 0.72rem; color: var(--mid); padding: 8px 16px 24px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-logo">P</div>
+  <div>
+    <h1>Printumo Print Resizer</h1>
+    <p>Turn one high-resolution image into print-ready files for every Printumo paper size</p>
+  </div>
+</header>
+
+<main>
+  <!-- STEP 1 -->
+  <section class="card">
+    <h2><span class="step-num">1</span> Choose your picture</h2>
+    <div id="drop">
+      <strong>Drop an image here</strong>
+      <span>or tap to browse &mdash; JPEG, PNG, WebP. Nothing is uploaded; it all happens in your browser.</span>
+    </div>
+    <input type="file" id="file" accept="image/*" class="hidden">
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="card hidden" id="step2">
+    <h2><span class="step-num">2</span> Check the crop and settings</h2>
+    <div class="facts" id="facts"></div>
+    <div id="srcWarn"></div>
+    <p class="hint" style="margin-bottom:8px">Drag on the picture to move the focal point &mdash; crops keep that spot centred. The orange box shows the crop for the highlighted size below.</p>
+    <div class="preview-wrap" id="previewWrap">
+      <img id="preview" alt="Source preview">
+      <div id="cropBox" class="hidden"></div>
+      <div id="focal"></div>
+    </div>
+    <div class="controls" style="margin-top:14px">
+      <div class="field">
+        <label for="dpi">Print resolution</label>
+        <select id="dpi">
+          <option value="150" selected>150 DPI &mdash; Printumo standard</option>
+          <option value="200">200 DPI &mdash; extra headroom</option>
+          <option value="300">300 DPI &mdash; maximum</option>
+          <option value="100">100 DPI &mdash; minimum acceptable</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="fit">How to fit the image</label>
+        <select id="fit">
+          <option value="cover" selected>Crop to fill (no borders)</option>
+          <option value="contain">Fit whole image (adds border)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="format">File format</label>
+        <select id="format">
+          <option value="image/jpeg" selected>JPEG &mdash; photos</option>
+          <option value="image/png">PNG &mdash; flat art / line work</option>
+        </select>
+      </div>
+      <div class="field" id="qualityField">
+        <label for="quality">JPEG quality <span id="qualityVal">92</span></label>
+        <input type="range" id="quality" min="70" max="100" value="92">
+      </div>
+      <div class="field hidden" id="bgField">
+        <label for="bg">Border colour</label>
+        <input type="color" id="bg" value="#ffffff">
+      </div>
+      <div class="field">
+        <label for="basename">File name prefix</label>
+        <input type="text" id="basename" placeholder="my-artwork">
+      </div>
+      <label class="check"><input type="checkbox" id="upscale"> Allow upscaling</label>
+    </div>
+    <p class="hint" style="margin-top:10px">With upscaling off, a print larger than your image allows is still produced at the best size the file supports &mdash; it just lands below the target DPI, which the badges tell you.</p>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="card hidden" id="step3">
+    <h2><span class="step-num">3</span> Pick the print sizes</h2>
+    <div class="toolbar">
+      <button class="btn btn-ghost btn-sm" id="selAll">Select all</button>
+      <button class="btn btn-ghost btn-sm" id="selNone">Clear</button>
+      <button class="btn btn-ghost btn-sm" id="selGood">Only sizes my image supports</button>
+      <button class="btn btn-ghost btn-sm" id="addCustom">Add custom size…</button>
+    </div>
+    <div class="sizes" id="sizes"></div>
+    <p class="hint" style="margin-top:10px">
+      Badges compare the pixels available after cropping against the selected DPI:
+      <strong style="color:var(--green)">Excellent</strong> meets it,
+      <strong style="color:var(--yellow)">Acceptable</strong> is 100&ndash;150 DPI,
+      <strong style="color:var(--red)">Too small</strong> is under 100 DPI and will look soft in print.
+    </p>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="card hidden" id="step4">
+    <h2><span class="step-num">4</span> Make the files</h2>
+    <div class="toolbar">
+      <button class="btn btn-primary" id="generate">Generate selected sizes</button>
+      <button class="btn btn-ghost" id="zip" disabled>Download all as .zip</button>
+      <span class="hint" id="status"></span>
+    </div>
+    <div class="bar hidden" id="barWrap"><div id="bar"></div></div>
+    <div class="results" id="results"></div>
+  </section>
+
+  <section class="card">
+    <h2>About the sizes</h2>
+    <p class="note">
+      Sizes follow Printumo's fine art paper print catalogue, and every rectangular size is offered in
+      both portrait and landscape. Printumo's guidance is 150 DPI for paper prints, which is what this tool
+      targets by default; output files carry the correct DPI tag so the print stage reads them at the intended size.
+      If Printumo changes its catalogue, edit the <code>PRINTUMO_SIZES</code> list near the top of this file's script.
+    </p>
+  </section>
+</main>
+
+<footer>
+  Runs entirely offline in your browser &mdash; no image ever leaves this device.<br>
+  Part of the MRCC toolkit.
+</footer>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * Printumo paper print catalogue.
+ * Dimensions in centimetres, written short-edge x long-edge; each one
+ * is offered to the user in both portrait and landscape. Squares are
+ * listed separately and produced once.
+ * ------------------------------------------------------------------ */
+const PRINTUMO_SIZES = [
+  { short: 14,  long: 21,  label: 'A5',  inches: '8 x 5"' },
+  { short: 21,  long: 29,  label: 'A4',  inches: '11 x 8"' },
+  { short: 30,  long: 40,  label: '',    inches: '15 x 11"' },
+  { short: 29,  long: 42,  label: 'A3',  inches: '16 x 11"' },
+  { short: 40,  long: 50,  label: '',    inches: '19 x 15"' },
+  { short: 42,  long: 59,  label: 'A2',  inches: '23 x 16"' },
+  { short: 50,  long: 70,  label: '',    inches: '27 x 19"' },
+  { short: 59,  long: 84,  label: 'A1',  inches: '33 x 23"' },
+  { short: 70,  long: 100, label: '',    inches: '39 x 27"' },
+  { short: 100, long: 140, label: '',    inches: '55 x 39"' },
+];
+
+const PRINTUMO_SQUARES = [
+  { side: 50,  inches: '19 x 19"' },
+  { side: 70,  inches: '27 x 27"' },
+  { side: 100, inches: '39 x 39"' },
+];
+
+const CM_PER_INCH = 2.54;
+const MAX_CANVAS_EDGE = 16384;   // browsers refuse to allocate canvases beyond this
+const DPI_GOOD = 150;            // Printumo's recommended print resolution
+const DPI_MIN = 100;             // below this, prints look visibly soft
+
+/* ------------------------------------------------------------------ *
+ * State
+ * ------------------------------------------------------------------ */
+const state = {
+  bitmap: null,        // ImageBitmap or HTMLImageElement of the source
+  srcW: 0,
+  srcH: 0,
+  fileName: '',
+  fileSize: 0,
+  focal: { x: 0.5, y: 0.5 },
+  targets: [],         // built from the catalogue + any custom sizes
+  previewId: null,     // target whose crop box is drawn on the preview
+  outputs: [],         // { name, bytes, url, target, w, h, dpi }
+};
+
+const $ = (id) => document.getElementById(id);
+
+/* ------------------------------------------------------------------ *
+ * Build the target list
+ * ------------------------------------------------------------------ */
+function buildTargets() {
+  const targets = [];
+  let n = 0;
+  for (const s of PRINTUMO_SIZES) {
+    const suffix = s.label ? ' (' + s.label + ')' : '';
+    // Catalogue inch strings are written long edge first, which is the
+    // landscape reading; portrait flips them.
+    targets.push({
+      id: 'p' + (n++), group: 'Portrait', wCm: s.short, hCm: s.long,
+      name: s.short + ' x ' + s.long + ' cm' + suffix, inches: flipInches(s.inches), selected: true,
+    });
+    targets.push({
+      id: 'l' + (n++), group: 'Landscape', wCm: s.long, hCm: s.short,
+      name: s.long + ' x ' + s.short + ' cm' + suffix, inches: s.inches, selected: true,
+    });
+  }
+  for (const s of PRINTUMO_SQUARES) {
+    targets.push({
+      id: 's' + (n++), group: 'Square', wCm: s.side, hCm: s.side,
+      name: s.side + ' x ' + s.side + ' cm', inches: s.inches, selected: true,
+    });
+  }
+  return sortByGroup(targets);
+}
+
+/** Keeps all portraits together, then landscapes, then squares. */
+function sortByGroup(targets) {
+  const order = { Portrait: 0, Landscape: 1, Square: 2 };
+  return targets.sort((a, b) => order[a.group] - order[b.group]);
+}
+
+function flipInches(inches) {
+  const m = inches.match(/^(\d+) x (\d+)"$/);
+  return m ? m[2] + ' x ' + m[1] + '"' : inches;
+}
+
+/* ------------------------------------------------------------------ *
+ * Geometry
+ * ------------------------------------------------------------------ */
+function cmToPx(cm, dpi) {
+  return Math.max(1, Math.round((cm / CM_PER_INCH) * dpi));
+}
+
+/**
+ * Cover crop: the largest rectangle of the source with the target's
+ * aspect ratio, positioned so the focal point stays centred where the
+ * image allows it.
+ */
+function cropRect(target) {
+  const srcAR = state.srcW / state.srcH;
+  const tgtAR = target.wCm / target.hCm;
+  let w, h;
+  if (srcAR > tgtAR) { h = state.srcH; w = h * tgtAR; }
+  else               { w = state.srcW; h = w / tgtAR; }
+  const x = clamp(state.focal.x * state.srcW - w / 2, 0, state.srcW - w);
+  const y = clamp(state.focal.y * state.srcH - h / 2, 0, state.srcH - h);
+  return { x, y, w, h };
+}
+
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+/**
+ * Everything the UI and the renderer need to know about one target:
+ * the ideal pixel size, how much of it the source can actually deliver,
+ * and the real print resolution that results.
+ *
+ * `factor` is the share of the ideal size the source covers with real
+ * pixels: 1 means the file has detail to spare, 0.5 means it can only
+ * supply half the pixels the print wants.
+ */
+function plan(target, dpi, fit, allowUpscale) {
+  const idealW = cmToPx(target.wCm, dpi);
+  const idealH = cmToPx(target.hCm, dpi);
+
+  let factor;
+  if (fit === 'cover') {
+    // Both edges are checked because cmToPx rounding leaves the ideal pixel
+    // ratio a hair off the crop's, and the tighter edge is the honest limit.
+    const c = cropRect(target);
+    factor = Math.min(1, c.w / idealW, c.h / idealH);
+  } else {
+    // Contain: the image is scaled to sit inside the canvas; if that scale
+    // is above 1 the source is being stretched by exactly that much.
+    const scale = Math.min(idealW / state.srcW, idealH / state.srcH);
+    factor = Math.min(1, 1 / scale);
+  }
+
+  let outW = idealW, outH = idealH;
+  // Real detail available, regardless of the pixel dimensions written out.
+  const effDpi = dpi * factor;
+
+  if (factor < 1 && !allowUpscale) {
+    // Emit the largest file the source genuinely supports, at the target's
+    // aspect ratio. It still orders the same print, just below target DPI.
+    outW = Math.max(1, Math.round(idealW * factor));
+    outH = Math.max(1, Math.round(idealH * factor));
+  }
+
+  const tooBig = outW > MAX_CANVAS_EDGE || outH > MAX_CANVAS_EDGE;
+  return { idealW, idealH, outW, outH, effDpi, limited: factor < 1, tooBig };
+}
+
+function badgeFor(effDpi) {
+  if (effDpi >= DPI_GOOD - 0.5) return { cls: 'good', text: 'Excellent' };
+  if (effDpi >= DPI_MIN)        return { cls: 'ok',   text: 'Acceptable' };
+  return { cls: 'low', text: 'Too small' };
+}
+
+/* ------------------------------------------------------------------ *
+ * Loading the source image
+ * ------------------------------------------------------------------ */
+async function loadFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    alert('Please choose an image file (JPEG, PNG or WebP).');
+    return;
+  }
+  let bmp;
+  try {
+    // 'from-image' applies EXIF rotation so phone photos land upright.
+    bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch (e) {
+    bmp = await loadViaElement(file);
+  }
+  state.bitmap = bmp;
+  state.srcW = bmp.width;
+  state.srcH = bmp.height;
+  state.fileName = file.name;
+  state.fileSize = file.size;
+  state.focal = { x: 0.5, y: 0.5 };
+  state.previewId = null;
+  clearOutputs();
+
+  $('preview').src = URL.createObjectURL(file);
+  $('basename').value = file.name.replace(/\.[^.]+$/, '').replace(/[^\w\-]+/g, '-').replace(/^-+|-+$/g, '') || 'print';
+
+  $('step2').classList.remove('hidden');
+  $('step3').classList.remove('hidden');
+  $('step4').classList.remove('hidden');
+
+  renderFacts();
+  renderSizes();
+  $('step2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function loadViaElement(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Could not decode that image.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function renderFacts() {
+  const mp = (state.srcW * state.srcH) / 1e6;
+  // Largest print (long edge, cm) this file supports at the chosen DPI.
+  const dpi = Number($('dpi').value);
+  const longEdgeCm = (Math.max(state.srcW, state.srcH) / dpi) * CM_PER_INCH;
+  $('facts').innerHTML = [
+    fact('Pixels', state.srcW.toLocaleString() + ' x ' + state.srcH.toLocaleString()),
+    fact('Megapixels', mp.toFixed(1) + ' MP'),
+    fact('Aspect ratio', ratioLabel(state.srcW, state.srcH)),
+    fact('File size', (state.fileSize / 1048576).toFixed(1) + ' MB'),
+    fact('Max print @ ' + dpi + ' DPI', longEdgeCm.toFixed(0) + ' cm long edge'),
+  ].join('');
+
+  const warn = $('srcWarn');
+  if (mp < 6) {
+    warn.innerHTML = '<div class="warn"><strong>This image is on the small side (' + mp.toFixed(1) +
+      ' MP).</strong> It will still produce clean small prints, but the larger sizes will be flagged below. ' +
+      'For the full Printumo range at 150 DPI you want roughly 24 MP or more.</div>';
+  } else {
+    warn.innerHTML = '';
+  }
+}
+
+function fact(k, v) {
+  return '<div class="fact"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>';
+}
+
+function ratioLabel(w, h) {
+  const g = gcd(w, h);
+  const a = w / g, b = h / g;
+  if (a <= 40 && b <= 40) return a + ':' + b;
+  return (w / h).toFixed(2) + ':1';
+}
+
+function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+
+/* ------------------------------------------------------------------ *
+ * Size list rendering
+ * ------------------------------------------------------------------ */
+function renderSizes() {
+  if (!state.bitmap) return;
+  const dpi = Number($('dpi').value);
+  const fit = $('fit').value;
+  const up = $('upscale').checked;
+
+  let html = '';
+  let group = null;
+  for (const t of state.targets) {
+    if (t.group !== group) {
+      group = t.group;
+      html += '<div class="size-group">' + group + '</div>';
+    }
+    const p = plan(t, dpi, fit, up);
+    const b = p.tooBig ? { cls: 'low', text: 'Too large' } : badgeFor(p.effDpi);
+    const px = p.outW.toLocaleString() + ' x ' + p.outH.toLocaleString() + ' px';
+    let dpiTxt;
+    if (p.tooBig) dpiTxt = 'exceeds browser canvas limit &mdash; use a lower DPI';
+    else if (p.limited && up) dpiTxt = Math.round(p.effDpi) + ' DPI of real detail (upscaled)';
+    else if (p.limited) dpiTxt = Math.round(p.effDpi) + ' DPI &mdash; largest your file supports';
+    else dpiTxt = Math.round(p.effDpi) + ' DPI';
+    html +=
+      '<label class="size-row' + (state.previewId === t.id ? ' previewing' : '') + '" data-id="' + t.id + '">' +
+        '<input type="checkbox" data-id="' + t.id + '"' + (t.selected ? ' checked' : '') + '>' +
+        '<span><span class="size-name">' + t.name + '</span><br>' +
+          '<span class="size-sub">' + t.inches + ' &middot; ' + dpiTxt + '</span></span>' +
+        '<span class="px">' + px + '</span>' +
+        '<span class="badge ' + b.cls + '">' + b.text + '</span>' +
+      '</label>';
+  }
+  $('sizes').innerHTML = html;
+
+  for (const cb of $('sizes').querySelectorAll('input[type="checkbox"]')) {
+    cb.addEventListener('change', (e) => {
+      const t = state.targets.find((x) => x.id === e.target.dataset.id);
+      if (t) t.selected = e.target.checked;
+      updateGenerateButton();
+    });
+  }
+  for (const row of $('sizes').querySelectorAll('.size-row')) {
+    row.addEventListener('click', (e) => {
+      // Clicking the row (but not the checkbox) previews that crop.
+      if (e.target.tagName === 'INPUT') return;
+      e.preventDefault();
+      state.previewId = row.dataset.id;
+      renderSizes();
+      drawCropBox();
+    });
+  }
+  updateGenerateButton();
+  drawCropBox();
+}
+
+function updateGenerateButton() {
+  const n = state.targets.filter((t) => t.selected).length;
+  $('generate').disabled = n === 0;
+  $('generate').textContent = n ? 'Generate ' + n + ' size' + (n === 1 ? '' : 's') : 'Generate selected sizes';
+}
+
+/* ------------------------------------------------------------------ *
+ * Preview overlay
+ * ------------------------------------------------------------------ */
+function drawCropBox() {
+  const box = $('cropBox');
+  const img = $('preview');
+  const t = state.targets.find((x) => x.id === state.previewId);
+  if (!t || !state.bitmap || !img.clientWidth || $('fit').value !== 'cover') {
+    box.classList.add('hidden');
+    return;
+  }
+  const c = cropRect(t);
+  const sx = img.clientWidth / state.srcW;
+  const sy = img.clientHeight / state.srcH;
+  box.style.left = (c.x * sx) + 'px';
+  box.style.top = (c.y * sy) + 'px';
+  box.style.width = (c.w * sx) + 'px';
+  box.style.height = (c.h * sy) + 'px';
+  box.classList.remove('hidden');
+}
+
+function drawFocal() {
+  const img = $('preview');
+  const dot = $('focal');
+  // The focal point only steers cropping, so it is hidden when nothing crops.
+  dot.classList.toggle('hidden', $('fit').value !== 'cover');
+  if (!img.clientWidth) return;
+  dot.style.left = (state.focal.x * img.clientWidth) + 'px';
+  dot.style.top = (state.focal.y * img.clientHeight) + 'px';
+}
+
+function setFocalFromEvent(e) {
+  const img = $('preview');
+  const r = img.getBoundingClientRect();
+  const pt = e.touches ? e.touches[0] : e;
+  state.focal.x = clamp((pt.clientX - r.left) / r.width, 0, 1);
+  state.focal.y = clamp((pt.clientY - r.top) / r.height, 0, 1);
+  drawFocal();
+  drawCropBox();
+}
+
+/* ------------------------------------------------------------------ *
+ * Rendering one output file
+ * ------------------------------------------------------------------ */
+
+/**
+ * Downscales in halving steps before the final draw. A single large
+ * reduction in one drawImage call drops pixels and produces aliasing;
+ * stepping down keeps fine detail smooth.
+ */
+function resample(source, sx, sy, sw, sh, dw, dh) {
+  let canvas = document.createElement('canvas');
+  let cw = Math.max(1, Math.round(sw));
+  let ch = Math.max(1, Math.round(sh));
+  canvas.width = cw;
+  canvas.height = ch;
+  let ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, sx, sy, sw, sh, 0, 0, cw, ch);
+
+  while (cw > dw * 2 && ch > dh * 2) {
+    const nw = Math.max(dw, Math.round(cw / 2));
+    const nh = Math.max(dh, Math.round(ch / 2));
+    const next = document.createElement('canvas');
+    next.width = nw; next.height = nh;
+    const nctx = next.getContext('2d');
+    nctx.imageSmoothingEnabled = true;
+    nctx.imageSmoothingQuality = 'high';
+    nctx.drawImage(canvas, 0, 0, cw, ch, 0, 0, nw, nh);
+    canvas = next; ctx = nctx; cw = nw; ch = nh;
+  }
+  return { canvas, w: cw, h: ch };
+}
+
+async function renderTarget(target, opts) {
+  const p = plan(target, opts.dpi, opts.fit, opts.upscale);
+  if (p.tooBig) throw new Error(target.name + ' needs ' + p.outW + 'x' + p.outH +
+    ' px, beyond what a browser canvas can hold. Choose a lower DPI.');
+
+  const out = document.createElement('canvas');
+  out.width = p.outW;
+  out.height = p.outH;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  if (opts.fit === 'cover') {
+    const c = cropRect(target);
+    const stepped = resample(state.bitmap, c.x, c.y, c.w, c.h, p.outW, p.outH);
+    ctx.drawImage(stepped.canvas, 0, 0, stepped.w, stepped.h, 0, 0, p.outW, p.outH);
+  } else {
+    ctx.fillStyle = opts.bg;
+    ctx.fillRect(0, 0, p.outW, p.outH);
+    const scale = Math.min(p.outW / state.srcW, p.outH / state.srcH);
+    const dw = Math.max(1, Math.round(state.srcW * scale));
+    const dh = Math.max(1, Math.round(state.srcH * scale));
+    const stepped = resample(state.bitmap, 0, 0, state.srcW, state.srcH, dw, dh);
+    ctx.drawImage(stepped.canvas, 0, 0, stepped.w, stepped.h,
+      Math.round((p.outW - dw) / 2), Math.round((p.outH - dh) / 2), dw, dh);
+  }
+
+  const blob = await canvasToBlob(out, opts.format, opts.quality);
+  let bytes = new Uint8Array(await blob.arrayBuffer());
+  // Tag the file with its print resolution so Printumo and any desktop
+  // software read it at the intended physical size.
+  bytes = opts.format === 'image/png'
+    ? tagPngDpi(bytes, opts.dpi)
+    : tagJpegDpi(bytes, opts.dpi);
+
+  const ext = opts.format === 'image/png' ? 'png' : 'jpg';
+  const name = [
+    opts.basename,
+    target.wCm + 'x' + target.hCm + 'cm',
+    target.group.toLowerCase(),
+    p.outW + 'x' + p.outH + 'px',
+    opts.dpi + 'dpi',
+  ].join('_') + '.' + ext;
+
+  // Free the big canvas early; Safari is slow to reclaim it otherwise.
+  out.width = out.height = 1;
+
+  return { name, bytes, target, w: p.outW, h: p.outH, dpi: Math.round(p.effDpi), badge: badgeFor(p.effDpi) };
+}
+
+function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Encoding failed'))), type, quality);
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * DPI metadata
+ * ------------------------------------------------------------------ */
+
+/** Sets the JFIF density fields (or inserts an APP0 segment if absent). */
+function tagJpegDpi(bytes, dpi) {
+  const hasApp0 = bytes[0] === 0xFF && bytes[1] === 0xD8 &&
+                  bytes[2] === 0xFF && bytes[3] === 0xE0 &&
+                  bytes[6] === 0x4A && bytes[7] === 0x46 &&
+                  bytes[8] === 0x49 && bytes[9] === 0x46 && bytes[10] === 0x00;
+  if (hasApp0) {
+    const out = bytes.slice();
+    out[13] = 1;                    // units: dots per inch
+    out[14] = (dpi >> 8) & 0xFF;    // X density
+    out[15] = dpi & 0xFF;
+    out[16] = (dpi >> 8) & 0xFF;    // Y density
+    out[17] = dpi & 0xFF;
+    return out;
+  }
+  const app0 = new Uint8Array([
+    0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x02, 1,
+    (dpi >> 8) & 0xFF, dpi & 0xFF, (dpi >> 8) & 0xFF, dpi & 0xFF, 0x00, 0x00,
+  ]);
+  const out = new Uint8Array(bytes.length + app0.length);
+  out.set(bytes.subarray(0, 2), 0);
+  out.set(app0, 2);
+  out.set(bytes.subarray(2), 2 + app0.length);
+  return out;
+}
+
+/** Inserts a pHYs chunk (pixels per metre) ahead of the first IDAT. */
+function tagPngDpi(bytes, dpi) {
+  const ppm = Math.round(dpi * 39.3701);
+  let pos = 8; // skip signature
+  while (pos + 8 <= bytes.length) {
+    const len = readU32(bytes, pos);
+    const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+    if (type === 'IDAT' || type === 'pHYs') break;
+    pos += 12 + len;
+  }
+  if (pos + 8 > bytes.length) return bytes;
+
+  const chunk = new Uint8Array(21);
+  const dv = new DataView(chunk.buffer);
+  dv.setUint32(0, 9);
+  chunk.set([0x70, 0x48, 0x59, 0x73], 4); // 'pHYs'
+  dv.setUint32(8, ppm);
+  dv.setUint32(12, ppm);
+  chunk[16] = 1;                          // unit: metre
+  dv.setUint32(17, crc32(chunk.subarray(4, 17)));
+
+  const existing = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]) === 'pHYs';
+  const tailStart = existing ? pos + 12 + readU32(bytes, pos) : pos;
+  const out = new Uint8Array(pos + chunk.length + (bytes.length - tailStart));
+  out.set(bytes.subarray(0, pos), 0);
+  out.set(chunk, pos);
+  out.set(bytes.subarray(tailStart), pos + chunk.length);
+  return out;
+}
+
+function readU32(b, i) {
+  return ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * CRC32 (shared by the PNG chunk writer and the ZIP writer)
+ * ------------------------------------------------------------------ */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * ZIP writer (stored, no compression - JPEG/PNG are already compressed)
+ * ------------------------------------------------------------------ */
+function buildZip(files) {
+  const enc = new TextEncoder();
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
+  const parts = [];
+  const central = [];
+  let offset = 0;
+
+  for (const f of files) {
+    const nameBytes = enc.encode(f.name);
+    const crc = crc32(f.bytes);
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034B50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0x0800, true);   // UTF-8 file names
+    lv.setUint16(8, 0, true);        // stored
+    lv.setUint16(10, dosTime, true);
+    lv.setUint16(12, dosDate, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, f.bytes.length, true);
+    lv.setUint32(22, f.bytes.length, true);
+    lv.setUint16(26, nameBytes.length, true);
+    lv.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+
+    const cd = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(cd.buffer);
+    cv.setUint32(0, 0x02014B50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, dosTime, true);
+    cv.setUint16(14, dosDate, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, f.bytes.length, true);
+    cv.setUint32(24, f.bytes.length, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint32(42, offset, true);
+    cd.set(nameBytes, 46);
+
+    parts.push(local, f.bytes);
+    central.push(cd);
+    offset += local.length + f.bytes.length;
+  }
+
+  const centralSize = central.reduce((n, c) => n + c.length, 0);
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054B50, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);
+
+  return new Blob([...parts, ...central, end], { type: 'application/zip' });
+}
+
+/* ------------------------------------------------------------------ *
+ * Generation flow
+ * ------------------------------------------------------------------ */
+function currentOpts() {
+  return {
+    dpi: Number($('dpi').value),
+    fit: $('fit').value,
+    format: $('format').value,
+    quality: Number($('quality').value) / 100,
+    bg: $('bg').value,
+    upscale: $('upscale').checked,
+    basename: ($('basename').value || 'print').replace(/[^\w\-]+/g, '-'),
+  };
+}
+
+async function generate() {
+  const opts = currentOpts();
+  const chosen = state.targets.filter((t) => t.selected);
+  if (!chosen.length) return;
+
+  clearOutputs();
+  $('generate').disabled = true;
+  $('zip').disabled = true;
+  $('barWrap').classList.remove('hidden');
+
+  const failures = [];
+  for (let i = 0; i < chosen.length; i++) {
+    $('status').textContent = 'Rendering ' + (i + 1) + ' of ' + chosen.length + '…';
+    $('bar').style.width = ((i / chosen.length) * 100) + '%';
+    await nextFrame();
+    try {
+      const out = await renderTarget(chosen[i], opts);
+      out.url = URL.createObjectURL(new Blob([out.bytes], { type: opts.format }));
+      state.outputs.push(out);
+      addResultCard(out);
+    } catch (err) {
+      failures.push(err.message);
+    }
+  }
+
+  $('bar').style.width = '100%';
+  const totalMb = state.outputs.reduce((n, o) => n + o.bytes.length, 0) / 1048576;
+  $('status').textContent = state.outputs.length + ' file' + (state.outputs.length === 1 ? '' : 's') +
+    ' ready (' + totalMb.toFixed(1) + ' MB)' + (failures.length ? ' — ' + failures.length + ' skipped' : '');
+  if (failures.length) {
+    const div = document.createElement('div');
+    div.className = 'warn';
+    div.style.gridColumn = '1 / -1';
+    div.textContent = failures.join(' ');
+    $('results').prepend(div);
+  }
+  $('zip').disabled = state.outputs.length === 0;
+  updateGenerateButton();
+}
+
+function addResultCard(out) {
+  const card = document.createElement('div');
+  card.className = 'result';
+  card.innerHTML =
+    '<img src="' + out.url + '" alt="' + out.target.name + '">' +
+    '<div class="meta">' +
+      '<div class="t">' + out.target.name + '</div>' +
+      '<div class="s">' + out.w.toLocaleString() + ' x ' + out.h.toLocaleString() + ' px · ' +
+        out.dpi + ' DPI · ' + (out.bytes.length / 1048576).toFixed(1) + ' MB</div>' +
+      '<a class="btn btn-ghost btn-sm" href="' + out.url + '" download="' + out.name + '">Download</a>' +
+    '</div>';
+  $('results').appendChild(card);
+}
+
+function clearOutputs() {
+  for (const o of state.outputs) URL.revokeObjectURL(o.url);
+  state.outputs = [];
+  $('results').innerHTML = '';
+  $('status').textContent = '';
+  $('bar').style.width = '0';
+  $('barWrap').classList.add('hidden');
+  $('zip').disabled = true;
+}
+
+function downloadZip() {
+  const blob = buildZip(state.outputs.map((o) => ({ name: o.name, bytes: o.bytes })));
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = currentOpts().basename + '_printumo-sizes.zip';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function nextFrame() {
+  return new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+}
+
+/* ------------------------------------------------------------------ *
+ * Wiring
+ * ------------------------------------------------------------------ */
+state.targets = buildTargets();
+
+$('drop').addEventListener('click', () => $('file').click());
+$('drop').addEventListener('dragover', (e) => { e.preventDefault(); $('drop').classList.add('over'); });
+$('drop').addEventListener('dragleave', () => $('drop').classList.remove('over'));
+$('drop').addEventListener('drop', (e) => {
+  e.preventDefault();
+  $('drop').classList.remove('over');
+  if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+$('file').addEventListener('change', (e) => { if (e.target.files.length) loadFile(e.target.files[0]); });
+
+$('preview').addEventListener('load', () => { drawFocal(); drawCropBox(); });
+window.addEventListener('resize', () => { drawFocal(); drawCropBox(); });
+
+let dragging = false;
+const wrap = $('previewWrap');
+wrap.addEventListener('pointerdown', (e) => {
+  dragging = true;
+  wrap.setPointerCapture(e.pointerId);
+  setFocalFromEvent(e);
+});
+wrap.addEventListener('pointermove', (e) => { if (dragging) setFocalFromEvent(e); });
+wrap.addEventListener('pointerup', (e) => {
+  dragging = false;
+  try { wrap.releasePointerCapture(e.pointerId); } catch (_) {}
+});
+
+for (const id of ['dpi', 'fit', 'upscale']) {
+  $(id).addEventListener('change', () => {
+    if (state.bitmap) renderFacts();
+    renderSizes();
+  });
+}
+$('fit').addEventListener('change', () => {
+  $('bgField').classList.toggle('hidden', $('fit').value !== 'contain');
+  $('previewWrap').style.cursor = $('fit').value === 'cover' ? 'crosshair' : 'default';
+  drawFocal();
+  drawCropBox();
+});
+$('format').addEventListener('change', () => {
+  $('qualityField').classList.toggle('hidden', $('format').value !== 'image/jpeg');
+});
+$('quality').addEventListener('input', () => { $('qualityVal').textContent = $('quality').value; });
+
+$('selAll').addEventListener('click', () => { state.targets.forEach((t) => (t.selected = true)); renderSizes(); });
+$('selNone').addEventListener('click', () => { state.targets.forEach((t) => (t.selected = false)); renderSizes(); });
+$('selGood').addEventListener('click', () => {
+  const dpi = Number($('dpi').value), fit = $('fit').value, up = $('upscale').checked;
+  // effDpi can never exceed the chosen DPI, so a 100 DPI target is judged
+  // against 100 rather than against Printumo's 150 recommendation.
+  const threshold = Math.min(dpi, DPI_GOOD) - 0.5;
+  state.targets.forEach((t) => {
+    const p = plan(t, dpi, fit, up);
+    t.selected = !p.tooBig && p.effDpi >= threshold;
+  });
+  renderSizes();
+});
+$('addCustom').addEventListener('click', () => {
+  const raw = prompt('Custom print size in centimetres, width x height (e.g. 61x91):');
+  if (!raw) return;
+  const m = raw.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i);
+  if (!m) { alert('Please enter it as width x height, for example 61x91.'); return; }
+  const w = Number(m[1]), h = Number(m[2]);
+  if (w <= 0 || h <= 0 || w > 300 || h > 300) { alert('Enter a size between 1 and 300 cm.'); return; }
+  state.targets.push({
+    id: 'c' + Date.now(),
+    group: w === h ? 'Square' : (w > h ? 'Landscape' : 'Portrait'),
+    wCm: w, hCm: h,
+    name: w + ' x ' + h + ' cm (custom)',
+    inches: (w / CM_PER_INCH).toFixed(0) + ' x ' + (h / CM_PER_INCH).toFixed(0) + '"',
+    selected: true,
+  });
+  sortByGroup(state.targets);
+  renderSizes();
+});
+
+$('generate').addEventListener('click', generate);
+$('zip').addEventListener('click', downloadZip);
+</script>
+</body>
+</html>
