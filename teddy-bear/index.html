@@ -1,0 +1,455 @@
+<title>Bramblefoot Bears</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:ital,wght@0,400;0,500;0,700;1,400&family=Young+Serif&family=Petrona:wght@500;600&family=Courier+Prime:wght@400;700&display=swap">
+<style>
+  :root{
+    --paper:#E8E6DC;
+    --card:#F4F2EA;
+    --ink:#23271F;
+    --ink2:#5A5E53;
+    --line:#C7C4B5;
+    --stitch:#B3AE9B;
+    --accent:#6E2B3F;
+    --accent-soft:#EADCE1;
+    --brass:#83672C;
+    --shadow:rgba(35,39,31,.10);
+    --display:"Young Serif","Petrona",Georgia,"Times New Roman",serif;
+    --body:"Karla","Helvetica Neue",Arial,sans-serif;
+    --mono:"Courier Prime","Courier New",monospace;
+    --measure:34rem;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#191C17;
+      --card:#232720;
+      --ink:#E9E6DA;
+      --ink2:#A2A597;
+      --line:#3A3E34;
+      --stitch:#4B4F44;
+      --accent:#D9899E;
+      --accent-soft:#33222A;
+      --brass:#C6A45C;
+      --shadow:rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#191C17;
+    --card:#232720;
+    --ink:#E9E6DA;
+    --ink2:#A2A597;
+    --line:#3A3E34;
+    --stitch:#4B4F44;
+    --accent:#D9899E;
+    --accent-soft:#33222A;
+    --brass:#C6A45C;
+    --shadow:rgba(0,0,0,.45);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--body);
+    font-size:17px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1060px;margin:0 auto;padding:0 28px}
+  a{color:inherit}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px}
+
+  /* ---------- masthead ---------- */
+  .masthead{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px 0 22px;flex-wrap:wrap}
+  .mark{display:flex;align-items:center;gap:12px;text-decoration:none}
+  .mark svg{display:block;width:34px;height:34px;color:var(--ink)}
+  .mark b{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.01em;line-height:1}
+  .mark-text{display:block}
+  .mark-est{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink2);margin-top:4px}
+  .nav{display:flex;gap:26px;font-size:14px;letter-spacing:.02em}
+  .nav a{text-decoration:none;color:var(--ink2);padding-bottom:2px;border-bottom:1px solid transparent}
+  .nav a:hover{color:var(--ink);border-bottom-color:var(--accent)}
+
+  /* ---------- stitched rule ---------- */
+  .stitch{border:0;border-top:2px dashed var(--stitch);margin:0}
+
+  /* ---------- hero ---------- */
+  .hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:56px;align-items:start;padding:52px 0 60px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--brass);margin:0 0 22px}
+  h1{
+    font-family:var(--display);font-weight:400;
+    font-size:clamp(2.5rem,5.4vw,3.9rem);
+    line-height:1.04;letter-spacing:-.015em;
+    text-wrap:balance;margin:0 0 24px;
+  }
+  .lede{font-size:1.12rem;color:var(--ink2);max-width:var(--measure);margin:0 0 32px}
+  .lede strong{color:var(--ink);font-weight:500}
+  .actions{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .btn{
+    display:inline-block;font-family:var(--body);font-weight:700;font-size:14px;
+    letter-spacing:.04em;text-transform:uppercase;text-decoration:none;
+    padding:13px 24px;background:var(--accent);color:var(--paper);border:0;cursor:pointer;
+  }
+  .btn:hover{filter:brightness(1.12)}
+  .btn-ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line);padding:11.5px 22px}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent);filter:none}
+
+  /* ---------- ledger card ---------- */
+  .ledger{
+    background:var(--card);border:1px solid var(--line);
+    box-shadow:0 1px 0 var(--line),0 14px 30px -22px var(--shadow);
+    padding:22px 24px 20px;font-family:var(--mono);font-size:13px;
+  }
+  .ledger-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+    border-bottom:2px solid var(--brass);padding-bottom:10px;margin-bottom:4px}
+  .ledger-top .no{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass)}
+  .ledger-top .nm{font-family:var(--display);font-size:22px;letter-spacing:.01em}
+  .ledger dl{display:grid;grid-template-columns:8.5rem minmax(0,1fr);margin:0}
+  .ledger dt{
+    padding:9px 0;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink2);border-bottom:1px solid var(--line);
+  }
+  .ledger dd{
+    padding:9px 0;margin:0;border-bottom:1px solid var(--line);
+    font-variant-numeric:tabular-nums;
+  }
+  .ledger dl>*:nth-last-child(-n+2){border-bottom:0}
+  .ledger-foot{margin-top:14px;padding-top:12px;border-top:2px dashed var(--stitch);
+    display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .ledger-foot .price{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums}
+  .ledger-foot .status{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass)}
+
+  /* ---------- generic section ---------- */
+  section{padding:60px 0}
+  .sec-head{display:grid;grid-template-columns:9rem minmax(0,1fr);gap:32px;align-items:baseline;margin-bottom:38px}
+  .sec-label{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--brass)}
+  h2{font-family:var(--display);font-weight:400;font-size:clamp(1.7rem,3.2vw,2.35rem);
+    line-height:1.14;letter-spacing:-.01em;margin:0;text-wrap:balance;max-width:26ch}
+  .sec-head p{margin:12px 0 0;color:var(--ink2);max-width:var(--measure)}
+
+  /* ---------- craft list ---------- */
+  .craft-item{display:grid;grid-template-columns:9rem minmax(0,1fr);gap:0 32px;
+    padding:22px 0;border-top:1px solid var(--line)}
+  .craft-item:first-child{border-top:0;padding-top:0}
+  .craft-item h3{font-family:var(--display);font-weight:400;font-size:1.05rem;margin:0;
+    letter-spacing:.01em;line-height:1.3}
+  .craft-item p{margin:0;color:var(--ink2);max-width:var(--measure)}
+  .craft-item em{font-family:var(--mono);font-style:normal;font-size:.88em;color:var(--ink)}
+
+  /* ---------- bear picker ---------- */
+  .shelf{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.85fr);gap:56px;align-items:start}
+  .picker{display:flex;flex-direction:column}
+  .bear{
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 18px;align-items:baseline;
+    width:100%;text-align:left;background:transparent;border:0;border-top:1px solid var(--line);
+    padding:20px 4px 20px 0;cursor:pointer;font:inherit;color:inherit;
+    transition:background .16s ease,padding .16s ease;
+  }
+  .bear:first-child{border-top:0}
+  .bear .bname{font-family:var(--display);font-size:1.45rem;line-height:1.2}
+  .bear .bprice{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink2)}
+  .bear .bmeta{grid-column:1/-1;font-size:14px;color:var(--ink2);margin:0}
+  .bear[aria-pressed="true"]{background:var(--accent-soft);padding-left:16px;padding-right:16px}
+  .bear[aria-pressed="true"] .bname{color:var(--accent)}
+  .bear:hover .bname{color:var(--accent)}
+  @media (prefers-reduced-motion: reduce){.bear{transition:none}}
+
+  /* ---------- commission ---------- */
+  .steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
+  .step{padding:0 28px;border-left:1px solid var(--line)}
+  .step:first-child{padding-left:0;border-left:0}
+  .step:last-child{padding-right:0}
+  .step .n{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--brass);
+    display:block;margin-bottom:10px}
+  .step h3{font-family:var(--display);font-weight:400;font-size:1.15rem;margin:0 0 8px;line-height:1.25}
+  .step p{margin:0;color:var(--ink2);font-size:15px}
+  .price-list{display:flex;gap:34px;flex-wrap:wrap;margin-top:40px;padding-top:26px;
+    border-top:2px dashed var(--stitch);font-family:var(--mono);font-size:14px}
+  .price-list div{display:flex;flex-direction:column;gap:4px}
+  .price-list span{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+  .price-list b{font-family:var(--display);font-weight:400;font-size:1.35rem;font-variant-numeric:tabular-nums}
+
+  /* ---------- promise ---------- */
+  .promise{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .promise .wrap{padding-top:60px;padding-bottom:60px}
+  .promise-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:start}
+  .promise h2{max-width:14ch}
+  .promise p{color:var(--ink2);margin:0 0 18px;max-width:var(--measure)}
+  .promise p:last-child{margin-bottom:0}
+  .promise strong{color:var(--ink);font-weight:500}
+  .caution{font-family:var(--mono);font-size:12.5px;line-height:1.65;color:var(--ink2);
+    border-left:2px solid var(--brass);padding:2px 0 2px 16px;margin-top:26px}
+
+  /* ---------- footer ---------- */
+  footer{padding:48px 0 60px}
+  .foot{display:flex;justify-content:space-between;gap:28px;flex-wrap:wrap;align-items:flex-end}
+  .foot p{margin:0;font-size:14px;color:var(--ink2);max-width:36ch}
+  .foot a{color:var(--accent);text-underline-offset:3px}
+  .foot .mono{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+
+  @media (max-width:860px){
+    .hero,.shelf,.promise-grid{grid-template-columns:minmax(0,1fr);gap:40px}
+    .sec-head,.craft-item{grid-template-columns:minmax(0,1fr);gap:8px}
+    .steps{grid-template-columns:minmax(0,1fr)}
+    .step{padding:22px 0;border-left:0;border-top:1px solid var(--line)}
+    .step:first-child{padding-top:0;border-top:0}
+    section{padding:44px 0}
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <a class="mark" href="#top">
+      <svg viewBox="0 0 40 40" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6">
+        <circle cx="10.5" cy="10.5" r="5.4" fill="none"/>
+        <circle cx="29.5" cy="10.5" r="5.4" fill="none"/>
+        <circle cx="20" cy="22.5" r="13" fill="none"/>
+        <ellipse cx="20" cy="27" rx="6" ry="4.6" fill="none"/>
+        <path d="M17.6 24.4h4.8l-2.4 2.6z" fill="currentColor" stroke="none"/>
+        <path d="M20 27v3.2M20 30.2c-1.5 0-2.4-.9-2.4-.9M20 30.2c1.5 0 2.4-.9 2.4-.9"/>
+        <circle cx="15.4" cy="20.6" r="1.15" fill="currentColor" stroke="none"/>
+        <circle cx="24.6" cy="20.6" r="1.15" fill="currentColor" stroke="none"/>
+      </svg>
+      <span class="mark-text">
+        <b>Bramblefoot Bears</b>
+        <span class="mark-est">Est. 2016 &middot; Western Australia</span>
+      </span>
+    </a>
+    <nav class="nav">
+      <a href="#making">The making</a>
+      <a href="#shelf">Bears</a>
+      <a href="#commission">Commissions</a>
+      <a href="#mending">Mending</a>
+    </nav>
+  </header>
+</div>
+
+<hr class="stitch">
+
+<div class="wrap" id="top">
+  <div class="hero">
+    <div>
+      <p class="eyebrow">Hand-sewn in the South West, WA</p>
+      <h1>A bear built to outlive the childhood it was made for.</h1>
+      <p class="lede">Five-way jointed mohair bears, cut and stitched one at a time. Every bear leaves here <strong>numbered, logged, and mended free</strong> for as long as these hands still work.</p>
+      <div class="actions">
+        <a class="btn" href="#shelf">See what's on the shelf</a>
+        <a class="btn btn-ghost" href="#commission">Commission a bear</a>
+      </div>
+    </div>
+
+    <article class="ledger" aria-live="polite">
+      <div class="ledger-top">
+        <span class="no" id="l-no">Bear No. 214</span>
+        <span class="nm" id="l-name">Marlowe</span>
+      </div>
+      <dl>
+        <dt>Mohair</dt><dd id="l-mohair">Schulte, 22 mm sparse, honey</dd>
+        <dt>Eyes</dt><dd id="l-eyes">English glass, 9 mm, amber</dd>
+        <dt>Joints</dt><dd id="l-joints">Five-way disc, brass cotter pins</dd>
+        <dt>Filling</dt><dd id="l-fill">Wood wool, 180 g steel shot</dd>
+        <dt>Standing</dt><dd id="l-height">42 cm</dd>
+        <dt>Weight</dt><dd id="l-weight">640 g</dd>
+        <dt>Nose</dt><dd id="l-nose">214 stitches, perle No. 8</dd>
+        <dt>Finished</dt><dd id="l-done">4 March 2026</dd>
+      </dl>
+      <div class="ledger-foot">
+        <span class="price" id="l-price">A$680</span>
+        <span class="status" id="l-status">Available</span>
+      </div>
+    </article>
+  </div>
+</div>
+
+<hr class="stitch">
+
+<div class="wrap">
+  <section id="making">
+    <div class="sec-head">
+      <p class="sec-label">The making</p>
+      <div>
+        <h2>Five things that separate a bear from a soft toy.</h2>
+        <p>None of it is fast, and all of it is the reason the bear is still here in forty years.</p>
+      </div>
+    </div>
+
+    <div class="craft">
+      <div class="craft-item">
+        <h3>Real mohair</h3>
+        <p>German-woven Schulte and Helmbold mohair &mdash; goat hair on a cotton backing, not synthetic plush. Every piece is cut through the backing only, one layer at a time with a scalpel, so the pile is never sheared through at the seam.</p>
+      </div>
+      <div class="craft-item">
+        <h3>Jointed, not sewn shut</h3>
+        <p>Head, arms and legs each turn on a pair of hardboard discs held by a <em>brass cotter pin</em>. The bear sits by itself, turns to look at you, and can be posed. A stuffed toy can do none of that.</p>
+      </div>
+      <div class="craft-item">
+        <h3>Weighted to hold</h3>
+        <p>Wood wool packed hard with a stuffing stick, then steel shot in the base and lower paws. A finished bear runs roughly <em>15 g per centimetre of height</em>, so it settles into an arm instead of floating.</p>
+      </div>
+      <div class="craft-item">
+        <h3>The nose is the face</h3>
+        <p>Two hundred or more stitches of perle cotton, laid one beside the next and trimmed flat. It takes about an hour and it is the entire difference between a bear that looks like something and a bear that looks like someone.</p>
+      </div>
+      <div class="craft-item">
+        <h3>Numbered and logged</h3>
+        <p>Each bear gets a number stitched into the left leg seam and a card in the ledger recording every material in it. We keep the card. In fifty years we can still tell you exactly what is inside your bear.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<hr class="stitch">
+
+<div class="wrap">
+  <section id="shelf">
+    <div class="sec-head">
+      <p class="sec-label">On the shelf</p>
+      <div>
+        <h2>Three bears finished, waiting to go somewhere.</h2>
+        <p>Select one to read its ledger card. When a bear is gone it is gone &mdash; nothing here is made twice.</p>
+      </div>
+    </div>
+
+    <div class="shelf">
+      <div class="picker" role="group" aria-label="Choose a bear">
+        <button class="bear" type="button" aria-pressed="true" data-bear="marlowe">
+          <span class="bname">Marlowe</span>
+          <span class="bprice">A$680</span>
+          <p class="bmeta">42 cm &middot; honey mohair &middot; amber glass eyes</p>
+        </button>
+        <button class="bear" type="button" aria-pressed="false" data-bear="pip">
+          <span class="bname">Pip</span>
+          <span class="bprice">A$460</span>
+          <p class="bmeta">26 cm &middot; ash-grey mohair &middot; boot-button eyes</p>
+        </button>
+        <button class="bear" type="button" aria-pressed="false" data-bear="ottoline">
+          <span class="bname">Ottoline</span>
+          <span class="bprice">A$920</span>
+          <p class="bmeta">51 cm &middot; distressed cinnamon &middot; tilt growler</p>
+        </button>
+      </div>
+
+      <article class="ledger" id="shelf-card" aria-live="polite">
+        <div class="ledger-top">
+          <span class="no" id="s-no">Bear No. 214</span>
+          <span class="nm" id="s-name">Marlowe</span>
+        </div>
+        <dl>
+          <dt>Mohair</dt><dd id="s-mohair">Schulte, 22 mm sparse, honey</dd>
+          <dt>Eyes</dt><dd id="s-eyes">English glass, 9 mm, amber</dd>
+          <dt>Joints</dt><dd id="s-joints">Five-way disc, brass cotter pins</dd>
+          <dt>Filling</dt><dd id="s-fill">Wood wool, 180 g steel shot</dd>
+          <dt>Standing</dt><dd id="s-height">42 cm</dd>
+          <dt>Weight</dt><dd id="s-weight">640 g</dd>
+          <dt>Nose</dt><dd id="s-nose">214 stitches, perle No. 8</dd>
+          <dt>Finished</dt><dd id="s-done">4 March 2026</dd>
+        </dl>
+        <div class="ledger-foot">
+          <span class="price" id="s-price">A$680</span>
+          <span class="status" id="s-status">Available</span>
+        </div>
+      </article>
+    </div>
+  </section>
+</div>
+
+<hr class="stitch">
+
+<div class="wrap">
+  <section id="commission">
+    <div class="sec-head">
+      <p class="sec-label">Commissions</p>
+      <div>
+        <h2>Bears made out of something you already own.</h2>
+        <p>A father's shirt, a hospital blanket, a football guernsey, a wedding dress. Post it over and it comes back as a bear. Most of what leaves this bench is a memory bear.</p>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <span class="n">FIRST</span>
+        <h3>We talk</h3>
+        <p>Who the bear is for, what it is made from, and what you want it to feel like to hold. Half an hour on the phone, no charge, no obligation.</p>
+      </div>
+      <div class="step">
+        <span class="n">THEN</span>
+        <h3>You choose the cloth</h3>
+        <p>Mohair swatches go in the post so you can feel the pile and the weight before anything is cut. Nothing is cut until you say so.</p>
+      </div>
+      <div class="step">
+        <span class="n">FINALLY</span>
+        <h3>Six to eight weeks</h3>
+        <p>You get photographs at the pinned stage, before the head is closed, and again before the nose goes on. Changes are free at both points.</p>
+      </div>
+    </div>
+
+    <div class="price-list">
+      <div><span>Shelf bears from</span><b>A$460</b></div>
+      <div><span>Commission from</span><b>A$780</b></div>
+      <div><span>Memory bear from</span><b>A$540</b></div>
+      <div><span>Repairs</span><b>Free</b></div>
+    </div>
+  </section>
+</div>
+
+<div class="promise" id="mending">
+  <div class="wrap">
+    <div class="promise-grid">
+      <div>
+        <p class="sec-label" style="margin:0 0 18px">The mending promise</p>
+        <h2>Send it back. However bad it is.</h2>
+      </div>
+      <div>
+        <p>Any bear with our number in its leg seam comes home for repair at <strong>no cost, for as long as we are working</strong>. Split seams, worn-through paw pads, a loose head joint, limbs gone soft, an eye lost somewhere in a move &mdash; all of it.</p>
+        <p>Return postage within Australia is ours. There is no receipt to find, no warranty period, and it does not matter whether you are the person who bought it. <strong>A bear that cannot be mended was never an heirloom.</strong></p>
+        <p class="caution">SAFETY &mdash; These are collector's bears. Glass eyes on wire shanks and small jointing hardware make them unsuitable for children under three. Ask for a safety-eye build and a locked-seam finish if the bear is going to a baby; it costs nothing extra and takes the same time.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <footer>
+    <div class="foot">
+      <p>Bramblefoot Bears &mdash; one bench, one pair of hands, South West of Western Australia. Bears posted Australia-wide and overseas.</p>
+      <div>
+        <p class="mono" style="margin-bottom:6px">Enquiries</p>
+        <p><a href="mailto:hello@bramblefootbears.com.au">hello@bramblefootbears.com.au</a></p>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  var BEARS = {
+    marlowe:{no:"Bear No. 214",name:"Marlowe",mohair:"Schulte, 22 mm sparse, honey",
+      eyes:"English glass, 9 mm, amber",joints:"Five-way disc, brass cotter pins",
+      fill:"Wood wool, 180 g steel shot",height:"42 cm",weight:"640 g",
+      nose:"214 stitches, perle No. 8",done:"4 March 2026",price:"A$680",status:"Available"},
+    pip:{no:"Bear No. 217",name:"Pip",mohair:"Helmbold, 12 mm dense, ash grey",
+      eyes:"Vintage boot buttons, 7 mm",joints:"Five-way disc, brass cotter pins",
+      fill:"Wood wool, 60 g steel shot",height:"26 cm",weight:"310 g",
+      nose:"146 stitches, perle No. 8",done:"19 May 2026",price:"A$460",status:"Available"},
+    ottoline:{no:"Bear No. 219",name:"Ottoline",mohair:"Schulte, 25 mm distressed, cinnamon",
+      eyes:"English glass, 12 mm, dark brown",joints:"Five-way disc, tilt growler in torso",
+      fill:"Wood wool, 320 g steel shot",height:"51 cm",weight:"1.14 kg",
+      nose:"268 stitches, perle No. 5",done:"2 August 2026",price:"A$920",status:"On hold until 14 Sep"}
+  };
+
+  var buttons = document.querySelectorAll(".bear");
+  function show(key){
+    var b = BEARS[key];
+    if(!b) return;
+    ["no","name","mohair","eyes","joints","fill","height","weight","nose","done","price","status"]
+      .forEach(function(f){
+        var el = document.getElementById("s-" + f);
+        if(el) el.textContent = b[f];
+      });
+    buttons.forEach(function(btn){
+      btn.setAttribute("aria-pressed", btn.dataset.bear === key ? "true" : "false");
+    });
+  }
+  buttons.forEach(function(btn){
+    btn.addEventListener("click", function(){ show(btn.dataset.bear); });
+  });
+</script>
